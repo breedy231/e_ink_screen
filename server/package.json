@@ -1,0 +1,29 @@
+{
+  "name": "kindle-dashboard-generator",
+  "version": "1.0.0",
+  "description": "E-ink dashboard image generator for Kindle Touch",
+  "main": "generate-dashboard.js",
+  "scripts": {
+    "start": "node generate-dashboard.js",
+    "dev": "node generate-dashboard.js --watch",
+    "test": "node generate-dashboard.js --test"
+  },
+  "keywords": [
+    "kindle",
+    "e-ink",
+    "dashboard",
+    "image-generation"
+  ],
+  "author": "ClaudeUser",
+  "license": "MIT",
+  "dependencies": {
+    "canvas": "^2.11.2",
+    "date-fns": "^2.30.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}

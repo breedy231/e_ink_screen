@@ -1,0 +1,57 @@
+{
+  "name": "Default Layout",
+  "description": "Classic dashboard layout with large clock and system info",
+  "grid": {
+    "rows": 12,
+    "cols": 8,
+    "margin": 15,
+    "gap": 8
+  },
+  "components": [
+    {
+      "type": "title",
+      "position": { "row": 0, "col": 1, "colSpan": 6 },
+      "config": {
+        "text": "E-INK DASHBOARD",
+        "fontSize": 28,
+        "fontWeight": "bold"
+      }
+    },
+    {
+      "type": "clock",
+      "position": { "row": 1, "col": 0, "rowSpan": 3, "colSpan": 8 },
+      "config": {
+        "fontSize": 84,
+        "showSeconds": true,
+        "secondsSize": 0.4,
+        "format": "HH:mm"
+      }
+    },
+    {
+      "type": "date",
+      "position": { "row": 4, "col": 0, "rowSpan": 2, "colSpan": 8 },
+      "config": {
+        "fontSize": 24,
+        "showDayOfYear": true,
+        "dayFormat": "EEEE",
+        "dateFormat": "MMMM do, yyyy"
+      }
+    },
+    {
+      "type": "stats",
+      "position": { "row": 7, "col": 0, "rowSpan": 4, "colSpan": 8 },
+      "config": {
+        "title": "SYSTEM STATUS",
+        "fontSize": 18,
+        "titleSize": 1.4,
+        "showGenerated": true,
+        "showTimezone": true,
+        "showResolution": true,
+        "customStats": [
+          "E-ink optimized",
+          "Status: Dashboard Active"
+        ]
+      }
+    }
+  ]
+}

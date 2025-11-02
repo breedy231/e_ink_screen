@@ -1,0 +1,30 @@
+{
+  "name": "kindle-dashboard-netlify",
+  "version": "1.0.0",
+  "description": "Cloud-deployed Kindle Dashboard Generator",
+  "main": "netlify/functions/dashboard.js",
+  "scripts": {
+    "dev": "netlify dev",
+    "build": "echo 'No build step required'",
+    "deploy": "netlify deploy --prod"
+  },
+  "keywords": [
+    "kindle",
+    "e-ink",
+    "dashboard",
+    "netlify",
+    "serverless"
+  ],
+  "author": "Dashboard Project",
+  "license": "MIT",
+  "dependencies": {
+    "canvas": "^2.11.2",
+    "date-fns": "^2.30.0"
+  },
+  "devDependencies": {
+    "netlify-cli": "^17.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

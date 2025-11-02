@@ -1,0 +1,59 @@
+{
+  "name": "Compact Layout",
+  "description": "Dense information layout with smaller components",
+  "grid": {
+    "rows": 16,
+    "cols": 10,
+    "margin": 10,
+    "gap": 5
+  },
+  "components": [
+    {
+      "type": "title",
+      "position": { "row": 0, "col": 2, "colSpan": 6 },
+      "config": {
+        "text": "KINDLE DASHBOARD",
+        "fontSize": 20,
+        "fontWeight": "bold"
+      }
+    },
+    {
+      "type": "clock",
+      "position": { "row": 1, "col": 0, "rowSpan": 3, "colSpan": 5 },
+      "config": {
+        "fontSize": 48,
+        "showSeconds": true,
+        "secondsSize": 0.5,
+        "format": "HH:mm"
+      }
+    },
+    {
+      "type": "date",
+      "position": { "row": 1, "col": 5, "rowSpan": 3, "colSpan": 5 },
+      "config": {
+        "fontSize": 16,
+        "showDayOfYear": true,
+        "dayFormat": "EEE",
+        "dateFormat": "MMM do"
+      }
+    },
+    {
+      "type": "stats",
+      "position": { "row": 5, "col": 0, "rowSpan": 6, "colSpan": 10 },
+      "config": {
+        "title": "SYSTEM INFO",
+        "fontSize": 14,
+        "titleSize": 1.2,
+        "showGenerated": true,
+        "showTimezone": false,
+        "showResolution": false,
+        "customStats": [
+          "Mode: Compact Dashboard",
+          "Refresh: Auto",
+          "Power: Optimized",
+          "Network: Connected"
+        ]
+      }
+    }
+  ]
+}

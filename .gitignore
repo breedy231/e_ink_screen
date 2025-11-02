@@ -1,0 +1,44 @@
+# Node modules
+node_modules/
+server/node_modules/
+
+# Python virtual environment
+test_env/
+*.pyc
+__pycache__/
+
+# Generated timestamped files
+test-images/*_eink_optimized.png
+test-images/*_20*.png
+
+# Cache and logs
+cache/
+logs/
+temp/
+*.log
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Secrets (if any)
+*.pem
+*.key
+.env
+config/secrets.conf
+kindle/config/*password*
+kindle/config/*secret*
+
+# Test outputs in root
+/dashboard*.png
+/test_dashboard*.png

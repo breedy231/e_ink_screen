@@ -1,0 +1,65 @@
+{
+  "name": "Debug Layout",
+  "description": "Simple layout for debugging positioning issues",
+  "grid": {
+    "rows": 6,
+    "cols": 4,
+    "margin": 20,
+    "gap": 10
+  },
+  "components": [
+    {
+      "type": "title",
+      "position": { "row": 0, "col": 0, "colSpan": 4 },
+      "config": {
+        "text": "DEBUG TEST",
+        "fontSize": 32,
+        "fontWeight": "bold",
+        "borderColor": "#000000",
+        "borderWidth": 2
+      }
+    },
+    {
+      "type": "clock",
+      "position": { "row": 1, "col": 0, "rowSpan": 2, "colSpan": 2 },
+      "config": {
+        "fontSize": 48,
+        "showSeconds": false,
+        "format": "HH:mm",
+        "borderColor": "#000000",
+        "borderWidth": 2
+      }
+    },
+    {
+      "type": "date",
+      "position": { "row": 1, "col": 2, "rowSpan": 2, "colSpan": 2 },
+      "config": {
+        "fontSize": 16,
+        "showDayOfYear": false,
+        "dayFormat": "EEE",
+        "dateFormat": "MMM do",
+        "borderColor": "#000000",
+        "borderWidth": 2
+      }
+    },
+    {
+      "type": "stats",
+      "position": { "row": 3, "col": 0, "rowSpan": 2, "colSpan": 4 },
+      "config": {
+        "title": "DEBUG INFO",
+        "fontSize": 14,
+        "titleSize": 1.2,
+        "showGenerated": true,
+        "showTimezone": false,
+        "showResolution": true,
+        "borderColor": "#000000",
+        "borderWidth": 2,
+        "customStats": [
+          "Grid: 6x4",
+          "Margins: 20px",
+          "Gap: 10px"
+        ]
+      }
+    }
+  ]
+}
