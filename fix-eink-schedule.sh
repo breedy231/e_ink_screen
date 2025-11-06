@@ -253,6 +253,10 @@ main() {
     echo "  - Kindle: $KINDLE_IP"
     echo "  - Pi Server: $PI_SERVER"
     echo ""
+    if [ "$SKIP_CHECKS" = true ]; then
+        echo "⚠️  Running with --skip-checks (connectivity verification disabled)"
+        echo ""
+    fi
     read -p "Continue? (y/N) " -n 1 -r
     echo
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
