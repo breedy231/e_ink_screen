@@ -86,7 +86,12 @@ sh -n kindle/*.sh
 ```bash
 # Deploy e-ink schedule fix to Kindle
 ./fix-eink-schedule.sh
+
+# If connectivity checks fail but SSH works manually
+./fix-eink-schedule.sh --skip-checks
 ```
+
+**Common Issue**: If the deployment script fails with "Cannot reach Kindle" but `ssh root@192.168.50.104` works manually, use the `--skip-checks` flag. This happens when `ping` is not available or network restrictions block connectivity checks.
 
 **Why Testing Matters**: The automated test suite has already caught and prevented production bugs (e.g., timezone coverage issue that would have caused updates to fail during CST). Always run tests before deploying!
 

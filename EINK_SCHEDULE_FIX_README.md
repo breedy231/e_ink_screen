@@ -112,6 +112,17 @@ The script will:
 5. ✅ Restart dashboard mode with WiFi keep-alive
 6. ✅ Verify deployment
 
+**If connectivity checks fail but you can SSH manually:**
+
+```bash
+./fix-eink-schedule.sh --skip-checks
+```
+
+This bypasses the connectivity checks and proceeds directly to deployment. Use this if:
+- The `ping` command is not available in your environment
+- Connectivity checks fail but `ssh root@192.168.50.104` works manually
+- You're deploying from a restricted network environment
+
 ### Manual Deployment (If Needed)
 
 If you prefer manual deployment:
@@ -221,6 +232,34 @@ sleep 3
 - ✅ Proper timezone handling (works during DST transitions)
 
 ## Troubleshooting
+
+### Issue: Deployment script fails with "Cannot reach Kindle" but SSH works manually
+
+**Symptoms:**
+- `./fix-eink-schedule.sh` fails at connectivity check
+- Error: "Cannot reach Kindle at 192.168.50.104"
+- But `ssh root@192.168.50.104` works fine when tested manually
+
+**Cause:**
+The script's connectivity check may fail if:
+- `ping` command is not available in your environment
+- Network restrictions block ICMP packets
+- Running from a restricted shell or container
+
+**Solution:** Use the `--skip-checks` flag:
+```bash
+./fix-eink-schedule.sh --skip-checks
+```
+
+This bypasses connectivity checks and proceeds directly to deployment using SSH (which you've verified works).
+
+**Verification:** After deployment completes, verify with:
+```bash
+ssh root@192.168.50.104 'crontab -l | grep fetch'
+```
+Should show two cron entries with time restrictions.
+
+---
 
 ### Issue: Updates still not working when unplugged
 

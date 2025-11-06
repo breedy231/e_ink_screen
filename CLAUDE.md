@@ -594,6 +594,12 @@ ssh root@192.168.50.104
 
 **Deployment Command**: `./fix-eink-schedule.sh`
 
+**Note**: If connectivity checks fail but SSH works manually, use:
+```bash
+./fix-eink-schedule.sh --skip-checks
+```
+This bypasses `ping`-based connectivity checks (useful when `ping` is unavailable or blocked).
+
 ## Shell Compatibility Rules for Kindle Development
 
 ### CRITICAL: Kindle uses basic shell (ash/dash), NOT bash

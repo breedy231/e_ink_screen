@@ -7,7 +7,10 @@
 # 1. Changes update schedule from 24/7 to 7am-10pm (Central Time)
 # 2. Prevents WiFi from sleeping when dashboard mode is active
 #
-# Usage: ./fix-eink-schedule.sh
+# Usage: ./fix-eink-schedule.sh [--skip-checks]
+#
+# Options:
+#   --skip-checks  Skip connectivity checks (use if checks fail but SSH works)
 ##############################################################################
 
 set -e
@@ -16,6 +19,22 @@ KINDLE_IP="192.168.50.104"
 KINDLE_USER="root"
 PI_SERVER="192.168.50.163"
 KINDLE_DASH_DIR="/mnt/us/dashboard"
+SKIP_CHECKS=false
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --skip-checks)
+            SKIP_CHECKS=true
+            shift
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Usage: $0 [--skip-checks]"
+            exit 1
+            ;;
+    esac
+done
 
 # Colors for output
 GREEN='\033[0;32m'
@@ -43,28 +62,24 @@ log_error() {
 check_connectivity() {
     log_step "Checking connectivity to Kindle and Pi server..."
 
-    # Check Kindle connectivity
-    if ! ping -c 1 -W 2 "$KINDLE_IP" >/dev/null 2>&1; then
-        log_error "Cannot reach Kindle at $KINDLE_IP"
-        log_error "Make sure Kindle is on and connected to WiFi"
-        exit 1
-    fi
-    log_info "✓ Kindle is reachable at $KINDLE_IP"
-
-    # Check Pi server connectivity
-    if ! ping -c 1 -W 2 "$PI_SERVER" >/dev/null 2>&1; then
-        log_error "Cannot reach Raspberry Pi server at $PI_SERVER"
-        log_error "Make sure Pi is running and on the network"
-        exit 1
-    fi
-    log_info "✓ Raspberry Pi is reachable at $PI_SERVER"
-
-    # Check if Pi server is responding on port 3000
-    if ! curl -s --max-time 5 "http://$PI_SERVER:3000/health" >/dev/null 2>&1; then
-        log_warn "Warning: Pi server health check failed"
-        log_warn "Server may not be running on port 3000"
+    # Check Kindle connectivity via SSH (more reliable than ping)
+    if ssh -o ConnectTimeout=5 -o BatchMode=yes "${KINDLE_USER}@${KINDLE_IP}" "exit" >/dev/null 2>&1; then
+        log_info "✓ Kindle is reachable at $KINDLE_IP"
     else
+        log_error "Cannot SSH to Kindle at $KINDLE_IP"
+        log_error "Make sure Kindle is on and connected to WiFi"
+        log_error "Verify SSH access with: ssh ${KINDLE_USER}@${KINDLE_IP}"
+        exit 1
+    fi
+
+    # Check Pi server connectivity (try ping first, fallback to curl)
+    if command -v ping >/dev/null 2>&1 && ping -c 1 -W 2 "$PI_SERVER" >/dev/null 2>&1; then
+        log_info "✓ Raspberry Pi is reachable at $PI_SERVER"
+    elif curl -s --max-time 5 "http://$PI_SERVER:3000/health" >/dev/null 2>&1; then
         log_info "✓ Pi server is responding on port 3000"
+    else
+        log_warn "Warning: Cannot verify Pi server connectivity"
+        log_warn "Will proceed, but verify server is running"
     fi
 }
 
@@ -238,6 +253,10 @@ main() {
     echo "  - Kindle: $KINDLE_IP"
     echo "  - Pi Server: $PI_SERVER"
     echo ""
+    if [ "$SKIP_CHECKS" = true ]; then
+        echo "⚠️  Running with --skip-checks (connectivity verification disabled)"
+        echo ""
+    fi
     read -p "Continue? (y/N) " -n 1 -r
     echo
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
@@ -245,7 +264,13 @@ main() {
         exit 0
     fi
 
-    check_connectivity
+    if [ "$SKIP_CHECKS" = false ]; then
+        check_connectivity
+    else
+        log_warn "Skipping connectivity checks (--skip-checks specified)"
+        log_warn "Make sure you can SSH to Kindle before proceeding"
+    fi
+
     backup_current_config
     deploy_updated_scripts
     update_cron_schedule
