@@ -17,10 +17,10 @@ LOG_FILE="$SCRIPT_DIR/logs/cron-setup.log"
 
 # Default configuration
 # Central Time 7am-10pm requires two cron entries due to UTC timezone
-# Entry 1: 12-23 UTC (7am-6:59pm CDT)
-# Entry 2: 0-3 UTC (7pm-10pm CDT)
-UPDATE_INTERVAL_1="*/5 12-23 * * *"  # Every 5 minutes, 12pm-11pm UTC (7am-6:59pm Central)
-UPDATE_INTERVAL_2="*/5 0-3 * * *"    # Every 5 minutes, midnight-3am UTC (7pm-10pm Central)
+# Entry 1: 12-23 UTC (7am-6pm CDT / 6am-5pm CST)
+# Entry 2: 0-4 UTC (7pm-10pm CDT / 6pm-10pm CST)
+UPDATE_INTERVAL_1="*/5 12-23 * * *"  # Every 5 minutes, 12pm-11pm UTC
+UPDATE_INTERVAL_2="*/5 0-4 * * *"    # Every 5 minutes, midnight-4am UTC (covers 10pm in both CDT/CST)
 USE_CENTRAL_TIME=true                # Set to false for single interval
 SERVER_HOST="192.168.50.163"         # Production Raspberry Pi server
 SERVER_PORT="3000"
