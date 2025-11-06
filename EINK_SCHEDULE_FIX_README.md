@@ -22,20 +22,20 @@ When the Kindle enters power-saving mode (unplugged from power), the WiFi radio 
 The `setup-local-cron.sh` script configures two cron entries to cover 7am-10pm Central Time:
 
 ```bash
-# Entry 1: 12:00-23:59 UTC (7am-6:59pm CDT)
+# Entry 1: 12:00-23:59 UTC (7am-6pm CDT / 6am-5pm CST)
 */5 12-23 * * * /mnt/us/dashboard/fetch-dashboard.sh
 
-# Entry 2: 00:00-03:00 UTC (7pm-10pm CDT previous day)
-*/5 0-3 * * * /mnt/us/dashboard/fetch-dashboard.sh
+# Entry 2: 00:00-04:59 UTC (7pm-10pm CDT / 6pm-10pm CST)
+*/5 0-4 * * * /mnt/us/dashboard/fetch-dashboard.sh
 ```
 
 **Why two entries?**
-Kindle's cron runs in UTC timezone. Central Time is UTC-5 (CDT) or UTC-6 (CST), so the 7am-10pm window spans across UTC midnight, requiring two separate cron entries.
+Kindle's cron runs in UTC timezone. Central Time is UTC-5 (CDT) or UTC-6 (CST), so the 7am-10pm window spans across UTC midnight, requiring two separate cron entries. The second entry extends to 4am UTC to ensure 10pm CST (4am UTC) is covered.
 
 **Battery savings:**
 - Before: 288 updates per day (24 hours × 12 per hour)
-- After: 180 updates per day (15 hours × 12 per hour)
-- **Reduction: 37.5% fewer updates**
+- After: 204 updates per day (17 hours × 12 per hour)
+- **Reduction: 29% fewer updates**
 
 ### 2. WiFi Keep-Alive Configuration
 
@@ -213,11 +213,12 @@ sleep 3
 - ❌ Dashboard becomes stale when unplugged
 
 ### After Fix
-- ✅ 180 updates per day (7am-10pm only)
+- ✅ 204 updates per day (7am-10pm, both CDT and CST)
 - ✅ WiFi stays connected even when unplugged
 - ✅ Updates work reliably during active hours
-- ✅ 37.5% reduction in battery usage from fewer updates
+- ✅ 29% reduction in battery usage from fewer updates
 - ✅ Dashboard stays fresh throughout the day
+- ✅ Proper timezone handling (works during DST transitions)
 
 ## Troubleshooting
 
@@ -272,7 +273,7 @@ Should show time restrictions (`12-23` and `0-3`)
 ```bash
 ssh root@192.168.50.104 'grep "$(date +%Y-%m-%d)" /mnt/us/dashboard/logs/auto-update.log | wc -l'
 ```
-Should be around 180 lines per day, not 288
+Should be around 204 lines per day, not 288
 
 ## Rollback Instructions
 
