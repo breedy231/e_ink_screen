@@ -22,7 +22,7 @@ LOG_FILE="$SCRIPT_DIR/logs/cron-setup.log"
 UPDATE_INTERVAL_1="*/5 12-23 * * *"  # Every 5 minutes, 12pm-11pm UTC (7am-6:59pm Central)
 UPDATE_INTERVAL_2="*/5 0-3 * * *"    # Every 5 minutes, midnight-3am UTC (7pm-10pm Central)
 USE_CENTRAL_TIME=true                # Set to false for single interval
-SERVER_HOST="192.168.50.200"         # Mac's IP address
+SERVER_HOST="192.168.50.163"         # Production Raspberry Pi server
 SERVER_PORT="3000"
 
 # Function to log messages

@@ -83,6 +83,35 @@ restore_screen_sleep() {
     fi
 }
 
+restore_wifi_power_management() {
+    log_info "Re-enabling WiFi power management for normal operation..."
+
+    # Restore normal WiFi power management
+    if [ -x "/usr/bin/lipc-set-prop" ]; then
+        # Disable WiFi keep-alive (restore normal power saving)
+        if /usr/bin/lipc-set-prop com.lab126.powerd keepAliveWirelessRadio 0; then
+            log_info "WiFi keep-alive disabled - power management restored"
+        else
+            log_warn "Failed to disable WiFi keep-alive"
+        fi
+    else
+        log_warn "lipc-set-prop command not found - WiFi power management unchanged"
+    fi
+
+    # Re-enable wireless power management at driver level
+    if command -v iwconfig >/dev/null 2>&1; then
+        local wifi_interface=$(iwconfig 2>/dev/null | grep -o "^[a-z0-9]*" | head -1)
+        if [ -n "${wifi_interface}" ]; then
+            log_info "Re-enabling WiFi power management on ${wifi_interface}"
+            if iwconfig "${wifi_interface}" power on 2>/dev/null; then
+                log_info "WiFi power management re-enabled at driver level"
+            else
+                log_warn "Could not re-enable WiFi power management at driver level"
+            fi
+        fi
+    fi
+}
+
 display_exit_message() {
     log_info "Displaying exit message on screen..."
 
@@ -247,6 +276,9 @@ main() {
 
     # Re-enable screen sleep
     restore_screen_sleep
+
+    # Restore WiFi power management
+    restore_wifi_power_management
 
     # Display exit message
     display_exit_message
