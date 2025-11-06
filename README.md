@@ -58,10 +58,45 @@ ssh root@kindle "/mnt/us/dashboard/setup-cloud-cron.sh"
 - **minimal**: Clean, simple time/date display
 - **device**: Device statistics and system monitoring
 
+## Testing & Deployment
+
+### Pre-Deployment Testing (Required)
+**Always run tests before deploying changes to Kindle:**
+
+```bash
+# Run comprehensive validation suite
+./pre-deployment-validation.sh
+```
+
+All tests must pass (✓ ALL VALIDATIONS PASSED) before deployment.
+
+### Individual Test Scripts
+```bash
+# Test cron schedule logic and timezone coverage
+./test-schedule-logic.sh
+
+# Test WiFi keep-alive implementation
+./test-wifi-commands.sh
+
+# Test shell script syntax (POSIX compatibility)
+sh -n kindle/*.sh
+```
+
+### Deployment
+```bash
+# Deploy e-ink schedule fix to Kindle
+./fix-eink-schedule.sh
+```
+
+**Why Testing Matters**: The automated test suite has already caught and prevented production bugs (e.g., timezone coverage issue that would have caused updates to fail during CST). Always run tests before deploying!
+
+For detailed testing documentation, see the "Automated Testing Suite" section in `CLAUDE.md`.
+
 ## Technical Details
 
 - **Display**: 800x600px grayscale PNG optimized for e-ink
-- **Updates**: 15-minute intervals during active hours (7am-10pm)
+- **Updates**: 5-minute intervals during active hours (7am-10pm Central Time)
+- **WiFi**: Keeps alive during dashboard mode for reliable updates when unplugged
 - **Weather**: Open-Meteo API with 30-minute caching
 - **Time Zone**: Central Time (America/Chicago)
 - **Authentication**: Token-based security for cloud endpoint

@@ -170,6 +170,42 @@ prevent_screen_sleep() {
     fi
 }
 
+keep_wifi_alive() {
+    log_info "Configuring WiFi to stay active during dashboard mode..."
+
+    # Prevent WiFi from sleeping to ensure cron jobs can fetch updates
+    if [ -x "/usr/bin/lipc-set-prop" ]; then
+        # Disable WiFi power management
+        if /usr/bin/lipc-set-prop com.lab126.cmd wirelessEnable 1; then
+            log_info "WiFi force-enabled successfully"
+        else
+            log_warn "Failed to force-enable WiFi via lipc-set-prop"
+        fi
+
+        # Keep wireless radio active (prevents sleep)
+        if /usr/bin/lipc-set-prop com.lab126.powerd keepAliveWirelessRadio 1; then
+            log_info "WiFi keep-alive enabled successfully"
+        else
+            log_warn "Failed to enable WiFi keep-alive"
+        fi
+    else
+        log_warn "lipc-set-prop command not found - WiFi may sleep during power saving"
+    fi
+
+    # Disable wireless power management at driver level as backup
+    if command -v iwconfig >/dev/null 2>&1; then
+        local wifi_interface=$(iwconfig 2>/dev/null | grep -o "^[a-z0-9]*" | head -1)
+        if [ -n "${wifi_interface}" ]; then
+            log_debug "Found WiFi interface: ${wifi_interface}"
+            if iwconfig "${wifi_interface}" power off 2>/dev/null; then
+                log_info "WiFi power management disabled at driver level"
+            else
+                log_debug "Could not disable WiFi power management at driver level"
+            fi
+        fi
+    fi
+}
+
 stop_framework() {
     if [ "$1" = "true" ]; then
         log_info "Stopping Kindle framework to reduce power consumption..."
@@ -289,6 +325,9 @@ main() {
 
     # Prevent screen sleep to keep dashboard visible (after screen clear)
     prevent_screen_sleep
+
+    # Keep WiFi alive to ensure cron jobs can fetch updates
+    keep_wifi_alive
 
     # Fetch initial dashboard
     if initial_dashboard_fetch; then
