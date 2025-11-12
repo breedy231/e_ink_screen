@@ -3,6 +3,7 @@
 const { DashboardEngine } = require('./dashboard-engine');
 const DeviceStats = require('./device-stats');
 const WeatherService = require('./weather-service');
+const PokemonService = require('./pokemon-service');
 const fs = require('fs');
 const path = require('path');
 const { format } = require('date-fns');
@@ -29,6 +30,11 @@ class FlexibleDashboardGenerator {
             latitude: options.latitude || 41.8781, // Default: Chicago
             longitude: options.longitude || -87.6298,
             timezone: options.timezone || 'America/Chicago',
+            mockData: options.mockData || false
+        });
+
+        // Pokemon service configuration
+        this.pokemonService = new PokemonService({
             mockData: options.mockData || false
         });
 
@@ -112,6 +118,21 @@ class FlexibleDashboardGenerator {
             }
         }
 
+        // Fetch Pokemon data if we have pokemon-sprite components
+        let pokemonData = null;
+        const hasPokemonComponent = layoutConfig.components.some(comp => comp.type === 'pokemon-sprite');
+
+        if (hasPokemonComponent) {
+            console.log(`🎮 Fetching today's Pokemon...`);
+            try {
+                pokemonData = await this.pokemonService.getFormattedPokemon();
+                console.log(`✅ Pokemon: #${pokemonData.id} ${pokemonData.name} (${pokemonData.source})`);
+            } catch (error) {
+                console.warn(`⚠️  Failed to fetch Pokemon data: ${error.message}`);
+                pokemonData = null;
+            }
+        }
+
         // Create dashboard engine
         const engine = new DashboardEngine({
             width: 600,
@@ -119,22 +140,22 @@ class FlexibleDashboardGenerator {
             backgroundColor: '#FFFFFF'
         });
 
-        // Load layout and inject device stats and weather data
-        const enrichedLayoutConfig = this.enrichLayoutWithData(layoutConfig, deviceStatsData, weatherData);
+        // Load layout and inject device stats, weather data, and pokemon data
+        const enrichedLayoutConfig = this.enrichLayoutWithData(layoutConfig, deviceStatsData, weatherData, pokemonData);
         engine.loadLayout(enrichedLayoutConfig);
 
         // Render dashboard
-        const canvas = engine.render({
+        const canvas = await engine.render({
             showGrid: options.showGrid || false
         });
 
-        return { canvas, layoutConfig, deviceStatsData, weatherData };
+        return { canvas, layoutConfig, deviceStatsData, weatherData, pokemonData };
     }
 
     /**
-     * Enrich layout configuration with data (device stats and weather)
+     * Enrich layout configuration with data (device stats, weather, and pokemon)
      */
-    enrichLayoutWithData(layoutConfig, deviceStatsData, weatherData) {
+    enrichLayoutWithData(layoutConfig, deviceStatsData, weatherData, pokemonData) {
         const enrichedConfig = JSON.parse(JSON.stringify(layoutConfig)); // Deep clone
 
         enrichedConfig.components = enrichedConfig.components.map(component => {
@@ -153,6 +174,15 @@ class FlexibleDashboardGenerator {
                     config: {
                         ...component.config,
                         weatherData: weatherData
+                    }
+                };
+            }
+            if (component.type === 'pokemon-sprite') {
+                return {
+                    ...component,
+                    config: {
+                        ...component.config,
+                        pokemonData: pokemonData
                     }
                 };
             }
