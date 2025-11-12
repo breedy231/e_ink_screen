@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const { createCanvas } = require('canvas');
+const { createCanvas, loadImage } = require('canvas');
 const fs = require('fs');
 const path = require('path');
 const { format } = require('date-fns');
@@ -533,6 +533,93 @@ class TitleComponent extends ComponentBase {
     }
 }
 
+class PokemonSpriteComponent extends ComponentBase {
+    constructor(config = {}) {
+        super('pokemon-sprite', {
+            fontSize: 14,
+            fontWeight: 'normal',
+            textAlign: 'center',
+            showNumber: config.showNumber !== false,
+            showName: config.showName || false,
+            pokemonData: config.pokemonData || null,
+            spriteSize: config.spriteSize || 0.85, // 85% of available space
+            ...config
+        });
+    }
+
+    async render(ctx, bounds) {
+        this.drawContainer(ctx, bounds);
+        const contentBounds = this.getContentBounds(bounds);
+
+        if (!this.config.pokemonData || !this.config.pokemonData.spritePath) {
+            // No sprite available - show placeholder
+            this.setTextStyle(ctx);
+            ctx.textAlign = 'center';
+            ctx.fillText('Pokemon', contentBounds.x + contentBounds.width / 2, contentBounds.y + contentBounds.height / 2);
+            return;
+        }
+
+        const pokemon = this.config.pokemonData;
+
+        try {
+            // Load sprite image
+            const image = await loadImage(pokemon.spritePath);
+
+            // Calculate sprite dimensions (maintain aspect ratio)
+            const maxSpriteSize = Math.min(contentBounds.width, contentBounds.height) * this.config.spriteSize;
+            const aspectRatio = image.width / image.height;
+
+            let spriteWidth, spriteHeight;
+            if (aspectRatio > 1) {
+                spriteWidth = maxSpriteSize;
+                spriteHeight = maxSpriteSize / aspectRatio;
+            } else {
+                spriteHeight = maxSpriteSize;
+                spriteWidth = maxSpriteSize * aspectRatio;
+            }
+
+            // Center sprite horizontally
+            const spriteX = contentBounds.x + (contentBounds.width - spriteWidth) / 2;
+
+            // Position sprite at top of content area, leave room for label below
+            const labelGap = 3; // Minimal gap between sprite and label
+            const labelHeight = this.config.showNumber || this.config.showName ? this.config.fontSize + labelGap : 0;
+            const availableHeight = contentBounds.height - labelHeight;
+            const spriteY = contentBounds.y + (availableHeight - spriteHeight) / 2;
+
+            // Draw sprite
+            ctx.drawImage(image, spriteX, spriteY, spriteWidth, spriteHeight);
+
+            // Draw Pokemon ID/name directly below sprite
+            if (this.config.showNumber || this.config.showName) {
+                this.setTextStyle(ctx);
+                ctx.textAlign = 'center';
+
+                // Position label right below sprite with minimal gap
+                const labelY = spriteY + spriteHeight + labelGap;
+                const labelX = contentBounds.x + contentBounds.width / 2;
+
+                let labelText = '';
+                if (this.config.showName && pokemon.name) {
+                    labelText = pokemon.name;
+                } else if (this.config.showNumber) {
+                    labelText = `#${pokemon.id}`;
+                }
+
+                ctx.fillText(labelText, labelX, labelY);
+            }
+        } catch (error) {
+            console.warn(`Failed to render Pokemon sprite: ${error.message}`);
+
+            // Fallback: show text
+            this.setTextStyle(ctx);
+            ctx.textAlign = 'center';
+            const textY = contentBounds.y + contentBounds.height / 2;
+            ctx.fillText(`#${pokemon.id}`, contentBounds.x + contentBounds.width / 2, textY);
+        }
+    }
+}
+
 class DashboardEngine {
     constructor(config = {}) {
         this.width = config.width || 600;
@@ -553,6 +640,7 @@ class DashboardEngine {
         this.registerComponent('device-stats', DeviceStatsComponent);
         this.registerComponent('weather', WeatherComponent);
         this.registerComponent('title', TitleComponent);
+        this.registerComponent('pokemon-sprite', PokemonSpriteComponent);
     }
 
     /**
@@ -604,7 +692,7 @@ class DashboardEngine {
     /**
      * Render complete dashboard
      */
-    render(options = {}) {
+    async render(options = {}) {
         const { canvas, ctx } = this.createCanvas();
 
         // Clear background
@@ -616,8 +704,8 @@ class DashboardEngine {
             this.grid.drawDebugGrid(ctx);
         }
 
-        // Render all components
-        this.layout.forEach(item => {
+        // Render all components (support async components)
+        const renderPromises = this.layout.map(async item => {
             const ComponentClass = this.components.get(item.type);
             if (!ComponentClass) {
                 console.warn(`Unknown component type: ${item.type}`);
@@ -632,8 +720,10 @@ class DashboardEngine {
                 item.position.colSpan || 1
             );
 
-            component.render(ctx, bounds);
+            await component.render(ctx, bounds);
         });
+
+        await Promise.all(renderPromises);
 
         return canvas;
     }
@@ -659,5 +749,6 @@ module.exports = {
     ClockComponent,
     DateComponent,
     StatsComponent,
-    TitleComponent
+    TitleComponent,
+    PokemonSpriteComponent
 };
