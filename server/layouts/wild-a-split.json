@@ -1,0 +1,131 @@
+{
+  "name": "Wild A — Split World",
+  "description": "Black top third with white text (temp + clock + date), white bottom with cards. Dramatic contrast.",
+  "grid": {
+    "rows": 20,
+    "cols": 12,
+    "margin": 0,
+    "gap": 0
+  },
+  "separators": [],
+  "components": [
+    {
+      "type": "hero-weather",
+      "position": { "row": 0, "col": 0, "rowSpan": 5, "colSpan": 6 },
+      "config": {
+        "fontSize": 100,
+        "fontWeight": "bold",
+        "textAlign": "left",
+        "textColor": "#FFFFFF",
+        "backgroundColor": "#000000",
+        "conditionSize": 0.22,
+        "padding": 20
+      }
+    },
+    {
+      "type": "analog-clock",
+      "position": { "row": 0, "col": 6, "rowSpan": 5, "colSpan": 3 },
+      "config": {
+        "backgroundColor": "#000000",
+        "handColor": "#FFFFFF",
+        "tickColor": "#FFFFFF",
+        "faceColor": "#000000",
+        "padding": 16
+      }
+    },
+    {
+      "type": "date",
+      "position": { "row": 0, "col": 9, "rowSpan": 3, "colSpan": 3 },
+      "config": {
+        "fontSize": 16,
+        "fontWeight": "bold",
+        "textAlign": "center",
+        "textColor": "#FFFFFF",
+        "backgroundColor": "#000000",
+        "showDayOfYear": false,
+        "dayFormat": "EEEE",
+        "dateFormat": "MMM do",
+        "padding": 12
+      }
+    },
+    {
+      "type": "pokemon-sprite",
+      "position": { "row": 3, "col": 9, "rowSpan": 2, "colSpan": 3 },
+      "config": {
+        "showNumber": false,
+        "showName": false,
+        "spriteSize": 0.95,
+        "backgroundColor": "#000000",
+        "padding": 4
+      }
+    },
+    {
+      "type": "weather",
+      "position": { "row": 6, "col": 0, "rowSpan": 3, "colSpan": 7 },
+      "config": {
+        "title": "",
+        "fontSize": 17,
+        "titleSize": 0,
+        "forecastSize": 1.0,
+        "forecastColumns": true,
+        "showCurrent": false,
+        "showForecast": true,
+        "showForecastLabel": false,
+        "showSource": false,
+        "forecastDays": 3,
+        "borderColor": "#DDDDDD",
+        "borderWidth": 1,
+        "borderRadius": 10,
+        "padding": 16
+      }
+    },
+    {
+      "type": "weather-illustration",
+      "position": { "row": 6, "col": 7, "rowSpan": 3, "colSpan": 5 },
+      "config": {
+        "strokeColor": "#000000",
+        "lineWidth": 2,
+        "borderColor": "#DDDDDD",
+        "borderWidth": 1,
+        "borderRadius": 10,
+        "padding": 10
+      }
+    },
+    {
+      "type": "calendar",
+      "position": { "row": 10, "col": 0, "rowSpan": 6, "colSpan": 12 },
+      "config": {
+        "fontSize": 14,
+        "maxEventsPerDay": 4,
+        "showUpcoming": false,
+        "sectionHeaderSize": 1.15,
+        "columnGap": 20,
+        "borderColor": "#DDDDDD",
+        "borderWidth": 1,
+        "borderRadius": 10,
+        "padding": 16
+      }
+    },
+    {
+      "type": "quote",
+      "position": { "row": 17, "col": 0, "rowSpan": 2, "colSpan": 12 },
+      "config": {
+        "fontSize": 14,
+        "fontWeight": "normal",
+        "textColor": "#FFFFFF",
+        "backgroundColor": "#000000",
+        "borderRadius": 0,
+        "padding": 16
+      }
+    },
+    {
+      "type": "status-bar",
+      "position": { "row": 19, "col": 0, "rowSpan": 1, "colSpan": 12 },
+      "config": {
+        "fontSize": 11,
+        "textColor": "#AAAAAA",
+        "padding": 16
+      }
+    }
+  ]
+}

@@ -112,7 +112,9 @@ class FlexibleDashboardGenerator {
 
         // Fetch weather data if we have weather components
         let weatherData = null;
-        const hasWeatherComponent = layoutConfig.components.some(comp => comp.type === 'weather' || comp.type === 'hero-weather');
+        const fullCanvasTypes = ['watch-face', 'brutalist', 'swiss-poster'];
+        const hasWeatherComponent = layoutConfig.components.some(comp =>
+            comp.type === 'weather' || comp.type === 'hero-weather' || comp.type === 'weather-illustration' || fullCanvasTypes.includes(comp.type));
 
         if (hasWeatherComponent) {
             console.log(`🌤️  Fetching weather data...`);
@@ -127,7 +129,7 @@ class FlexibleDashboardGenerator {
 
         // Fetch Pokemon data if we have pokemon-sprite components
         let pokemonData = null;
-        const hasPokemonComponent = layoutConfig.components.some(comp => comp.type === 'pokemon-sprite');
+        const hasPokemonComponent = layoutConfig.components.some(comp => comp.type === 'pokemon-sprite' || fullCanvasTypes.includes(comp.type));
 
         if (hasPokemonComponent) {
             console.log(`🎮 Fetching today's Pokemon...`);
@@ -142,7 +144,7 @@ class FlexibleDashboardGenerator {
 
         // Fetch calendar data if we have calendar components
         let calendarData = null;
-        const hasCalendarComponent = layoutConfig.components.some(comp => comp.type === 'calendar');
+        const hasCalendarComponent = layoutConfig.components.some(comp => comp.type === 'calendar' || fullCanvasTypes.includes(comp.type));
 
         if (hasCalendarComponent) {
             console.log(`📅 Fetching calendar data...`);
@@ -201,7 +203,7 @@ class FlexibleDashboardGenerator {
                     }
                 };
             }
-            if (component.type === 'weather' || component.type === 'hero-weather') {
+            if (component.type === 'weather' || component.type === 'hero-weather' || component.type === 'weather-illustration') {
                 return {
                     ...component,
                     config: {
@@ -225,6 +227,19 @@ class FlexibleDashboardGenerator {
                     config: {
                         ...component.config,
                         calendarData: calendarData
+                    }
+                };
+            }
+            // Full-canvas components that need all data
+            if (component.type === 'watch-face' || component.type === 'brutalist' || component.type === 'swiss-poster') {
+                return {
+                    ...component,
+                    config: {
+                        ...component.config,
+                        weatherData: weatherData,
+                        calendarData: calendarData,
+                        pokemonData: pokemonData,
+                        deviceStats: deviceStatsData
                     }
                 };
             }

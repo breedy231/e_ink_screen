@@ -96,6 +96,13 @@ prevent_sleep() {
     fi
 }
 
+# Disable Kindle UI overlay (pillow) to prevent status bar bleed-through
+disable_pillow() {
+    if [ -x "/usr/bin/lipc-set-prop" ]; then
+        /usr/bin/lipc-set-prop com.lab126.pillow disableEnablePillow disable 2>/dev/null && log_msg "Pillow disabled" || log_msg "Pillow disable failed (may already be off)"
+    fi
+}
+
 # Enable WiFi and wait for connection
 enable_wifi() {
     if [ -x "/usr/bin/lipc-set-prop" ]; then
@@ -158,10 +165,11 @@ main() {
 
     write_pid
 
-    # Stop framework and prevent sleep
+    # Stop framework, disable UI overlay, and prevent sleep
     stop_framework
     sleep 2
     prevent_sleep
+    disable_pillow
 
     # Clear screen after framework stop
     if [ -x "/usr/sbin/eips" ]; then

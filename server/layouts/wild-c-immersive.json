@@ -1,0 +1,115 @@
+{
+  "name": "Wild C — Immersive Dark",
+  "description": "Mostly black canvas. White text floats. Temperature at 200px. Information emerges from darkness.",
+  "grid": {
+    "rows": 20,
+    "cols": 12,
+    "margin": 0,
+    "gap": 0
+  },
+  "separators": [],
+  "components": [
+    {
+      "type": "hero-weather",
+      "position": { "row": 0, "col": 0, "rowSpan": 7, "colSpan": 12 },
+      "config": {
+        "fontSize": 200,
+        "fontWeight": "bold",
+        "textAlign": "center",
+        "textColor": "#FFFFFF",
+        "backgroundColor": "#000000",
+        "conditionSize": 0.12,
+        "padding": 20
+      }
+    },
+    {
+      "type": "date",
+      "position": { "row": 7, "col": 0, "rowSpan": 1, "colSpan": 6 },
+      "config": {
+        "fontSize": 18,
+        "fontWeight": "bold",
+        "textAlign": "left",
+        "textColor": "#FFFFFF",
+        "backgroundColor": "#000000",
+        "showDayOfYear": false,
+        "dayFormat": "",
+        "dateFormat": "EEEE, MMMM do",
+        "padding": 20
+      }
+    },
+    {
+      "type": "analog-clock",
+      "position": { "row": 7, "col": 6, "rowSpan": 3, "colSpan": 3 },
+      "config": {
+        "backgroundColor": "#000000",
+        "handColor": "#FFFFFF",
+        "tickColor": "#FFFFFF",
+        "faceColor": "#000000",
+        "padding": 10
+      }
+    },
+    {
+      "type": "pokemon-sprite",
+      "position": { "row": 7, "col": 9, "rowSpan": 3, "colSpan": 3 },
+      "config": {
+        "showNumber": false,
+        "showName": false,
+        "spriteSize": 0.9,
+        "backgroundColor": "#000000",
+        "padding": 6
+      }
+    },
+    {
+      "type": "weather",
+      "position": { "row": 8, "col": 0, "rowSpan": 2, "colSpan": 6 },
+      "config": {
+        "title": "",
+        "fontSize": 15,
+        "titleSize": 0,
+        "forecastSize": 1.0,
+        "forecastColumns": true,
+        "showCurrent": false,
+        "showForecast": true,
+        "showForecastLabel": false,
+        "showSource": false,
+        "forecastDays": 3,
+        "textColor": "#FFFFFF",
+        "backgroundColor": "#000000",
+        "padding": 20
+      }
+    },
+    {
+      "type": "calendar",
+      "position": { "row": 10, "col": 0, "rowSpan": 6, "colSpan": 12 },
+      "config": {
+        "fontSize": 14,
+        "maxEventsPerDay": 4,
+        "showUpcoming": false,
+        "sectionHeaderSize": 1.15,
+        "columnGap": 20,
+        "padding": 20
+      }
+    },
+    {
+      "type": "quote",
+      "position": { "row": 16, "col": 0, "rowSpan": 3, "colSpan": 12 },
+      "config": {
+        "fontSize": 14,
+        "fontWeight": "normal",
+        "textColor": "#FFFFFF",
+        "backgroundColor": "#000000",
+        "padding": 20
+      }
+    },
+    {
+      "type": "status-bar",
+      "position": { "row": 19, "col": 0, "rowSpan": 1, "colSpan": 12 },
+      "config": {
+        "fontSize": 11,
+        "textColor": "#FFFFFF",
+        "backgroundColor": "#000000",
+        "padding": 20
+      }
+    }
+  ]
+}

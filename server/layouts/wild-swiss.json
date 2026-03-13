@@ -1,0 +1,20 @@
+{
+  "name": "Wild — Swiss Poster",
+  "description": "International Typographic Style. Bold rules, dramatic scale, structured asymmetry.",
+  "grid": {
+    "rows": 1,
+    "cols": 1,
+    "margin": 24,
+    "gap": 0
+  },
+  "separators": [],
+  "components": [
+    {
+      "type": "swiss-poster",
+      "position": { "row": 0, "col": 0, "rowSpan": 1, "colSpan": 1 },
+      "config": {
+        "padding": 0
+      }
+    }
+  ]
+}

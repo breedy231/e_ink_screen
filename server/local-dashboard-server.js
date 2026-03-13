@@ -180,7 +180,7 @@ class LocalDashboardServer {
 
         enrichedConfig.components = enrichedConfig.components.map(component => {
             // Inject weather data into weather components
-            if ((component.type === 'weather' || component.type === 'hero-weather') && weatherData) {
+            if ((component.type === 'weather' || component.type === 'hero-weather' || component.type === 'weather-illustration') && weatherData) {
                 return {
                     ...component,
                     config: {

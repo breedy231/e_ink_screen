@@ -574,6 +574,121 @@ class QuoteComponent extends ComponentBase {
     }
 }
 
+class WeatherIllustrationComponent extends ComponentBase {
+    constructor(config = {}) {
+        super('weather-illustration', {
+            weatherData: config.weatherData || null,
+            strokeColor: config.strokeColor || '#000000',
+            lineWidth: config.lineWidth || 2,
+            ...config
+        });
+    }
+
+    render(ctx, bounds) {
+        this.drawContainer(ctx, bounds);
+        const contentBounds = this.getContentBounds(bounds);
+        const cx = contentBounds.x + contentBounds.width / 2;
+        const cy = contentBounds.y + contentBounds.height / 2;
+        const size = Math.min(contentBounds.width, contentBounds.height) * 0.4;
+
+        ctx.strokeStyle = this.config.strokeColor;
+        ctx.fillStyle = this.config.strokeColor;
+        ctx.lineWidth = this.config.lineWidth;
+        ctx.lineCap = 'round';
+
+        const icon = (this.config.weatherData && this.config.weatherData.current)
+            ? this.config.weatherData.current.icon || 'unknown'
+            : 'clear';
+
+        if (icon === 'clear' || icon === 'mostly-clear') {
+            this.drawSun(ctx, cx, cy, size);
+        } else if (icon === 'partly-cloudy') {
+            this.drawSun(ctx, cx - size * 0.3, cy - size * 0.2, size * 0.7);
+            this.drawCloud(ctx, cx + size * 0.2, cy + size * 0.2, size * 0.8);
+        } else if (icon === 'cloudy' || icon === 'fog') {
+            this.drawCloud(ctx, cx, cy - size * 0.15, size);
+            this.drawCloud(ctx, cx - size * 0.4, cy + size * 0.25, size * 0.7);
+        } else if (icon === 'rain' || icon === 'drizzle' || icon === 'showers' || icon === 'heavy-rain' || icon === 'heavy-showers') {
+            this.drawCloud(ctx, cx, cy - size * 0.2, size);
+            this.drawRain(ctx, cx, cy + size * 0.3, size);
+        } else if (icon === 'snow' || icon === 'heavy-snow' || icon === 'snow-showers' || icon === 'freezing-rain' || icon === 'freezing-drizzle') {
+            this.drawCloud(ctx, cx, cy - size * 0.2, size);
+            this.drawSnow(ctx, cx, cy + size * 0.3, size);
+        } else if (icon === 'thunderstorm' || icon === 'thunderstorm-hail') {
+            this.drawCloud(ctx, cx, cy - size * 0.2, size);
+            this.drawLightning(ctx, cx, cy + size * 0.15, size);
+        } else {
+            this.drawSun(ctx, cx, cy, size);
+        }
+    }
+
+    drawSun(ctx, cx, cy, size) {
+        // Circle
+        ctx.beginPath();
+        ctx.arc(cx, cy, size * 0.35, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Rays
+        for (let i = 0; i < 8; i++) {
+            const angle = (i * Math.PI * 2) / 8;
+            const innerR = size * 0.5;
+            const outerR = size * 0.75;
+            ctx.beginPath();
+            ctx.moveTo(cx + Math.cos(angle) * innerR, cy + Math.sin(angle) * innerR);
+            ctx.lineTo(cx + Math.cos(angle) * outerR, cy + Math.sin(angle) * outerR);
+            ctx.stroke();
+        }
+    }
+
+    drawCloud(ctx, cx, cy, size) {
+        ctx.beginPath();
+        ctx.arc(cx - size * 0.3, cy, size * 0.25, Math.PI, Math.PI * 1.85);
+        ctx.arc(cx - size * 0.05, cy - size * 0.22, size * 0.3, Math.PI * 1.2, Math.PI * 1.9);
+        ctx.arc(cx + size * 0.25, cy - size * 0.1, size * 0.22, Math.PI * 1.3, Math.PI * 0.1);
+        ctx.arc(cx + size * 0.3, cy + size * 0.05, size * 0.18, Math.PI * 1.6, Math.PI * 0.5);
+        ctx.lineTo(cx - size * 0.4, cy + size * 0.15);
+        ctx.arc(cx - size * 0.3, cy, size * 0.25, Math.PI * 0.6, Math.PI);
+        ctx.stroke();
+    }
+
+    drawRain(ctx, cx, cy, size) {
+        const drops = [-0.3, -0.05, 0.2];
+        for (const dx of drops) {
+            ctx.beginPath();
+            ctx.moveTo(cx + size * dx, cy);
+            ctx.lineTo(cx + size * dx - size * 0.08, cy + size * 0.35);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(cx + size * dx + size * 0.15, cy + size * 0.12);
+            ctx.lineTo(cx + size * dx + size * 0.07, cy + size * 0.45);
+            ctx.stroke();
+        }
+    }
+
+    drawSnow(ctx, cx, cy, size) {
+        const flakes = [[-0.25, 0], [0.05, 0.1], [0.3, -0.05], [-0.1, 0.3], [0.2, 0.3]];
+        for (const [dx, dy] of flakes) {
+            const fx = cx + size * dx;
+            const fy = cy + size * dy;
+            const r = size * 0.06;
+            ctx.beginPath();
+            ctx.arc(fx, fy, r, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+
+    drawLightning(ctx, cx, cy, size) {
+        ctx.lineWidth = this.config.lineWidth + 1;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx - size * 0.15, cy + size * 0.25);
+        ctx.lineTo(cx + size * 0.05, cy + size * 0.22);
+        ctx.lineTo(cx - size * 0.08, cy + size * 0.5);
+        ctx.stroke();
+        ctx.lineWidth = this.config.lineWidth;
+    }
+}
+
 class StatusBarComponent extends ComponentBase {
     constructor(config = {}) {
         super('status-bar', {
@@ -1092,6 +1207,560 @@ class CalendarComponent extends ComponentBase {
     }
 }
 
+class WatchFaceComponent extends ComponentBase {
+    constructor(config = {}) {
+        super('watch-face', {
+            weatherData: config.weatherData || null,
+            calendarData: config.calendarData || null,
+            ...config
+        });
+    }
+
+    render(ctx, bounds) {
+        this.drawContainer(ctx, bounds);
+        const cb = this.getContentBounds(bounds);
+        const cx = cb.x + cb.width / 2;
+        const cy = cb.y + cb.height * 0.42;
+        const radius = Math.min(cb.width, cb.height * 0.75) / 2;
+
+        // Outer ring — thin elegant
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Inner ring
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius - 8, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Hour dots
+        for (let i = 0; i < 12; i++) {
+            const angle = (i * Math.PI * 2) / 12 - Math.PI / 2;
+            const dotR = radius - 4;
+            const dotSize = i % 3 === 0 ? 5 : 2;
+            ctx.fillStyle = '#000000';
+            ctx.beginPath();
+            ctx.arc(cx + Math.cos(angle) * dotR, cy + Math.sin(angle) * dotR, dotSize, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // Hands
+        const now = new Date();
+        const hours = now.getHours() % 12;
+        const minutes = now.getMinutes();
+
+        // Hour hand
+        const hourAngle = ((hours + minutes / 60) * Math.PI * 2) / 12 - Math.PI / 2;
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 6;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + Math.cos(hourAngle) * radius * 0.45, cy + Math.sin(hourAngle) * radius * 0.45);
+        ctx.stroke();
+
+        // Minute hand
+        const minuteAngle = (minutes * Math.PI * 2) / 60 - Math.PI / 2;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + Math.cos(minuteAngle) * radius * 0.7, cy + Math.sin(minuteAngle) * radius * 0.7);
+        ctx.stroke();
+
+        // Center
+        ctx.fillStyle = '#000000';
+        ctx.beginPath();
+        ctx.arc(cx, cy, 5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // --- COMPLICATIONS ---
+        ctx.textBaseline = 'middle';
+        ctx.textAlign = 'center';
+
+        // 12 o'clock complication: Date
+        ctx.font = 'bold 14px sans-serif';
+        ctx.fillStyle = '#000000';
+        ctx.fillText(format(now, 'EEE').toUpperCase(), cx, cy - radius * 0.55);
+        ctx.font = 'bold 22px sans-serif';
+        ctx.fillText(format(now, 'd'), cx, cy - radius * 0.38);
+
+        // 3 o'clock complication: Temperature
+        if (this.config.weatherData && this.config.weatherData.current) {
+            const temp = this.config.weatherData.current.temperature || '--°';
+            ctx.font = 'bold 18px sans-serif';
+            ctx.fillText(temp, cx + radius * 0.48, cy);
+        }
+
+        // 9 o'clock complication: Condition
+        if (this.config.weatherData && this.config.weatherData.current) {
+            const cond = this.config.weatherData.current.condition || '';
+            const short = cond.length > 8 ? cond.slice(0, 7) + '.' : cond;
+            ctx.font = '13px sans-serif';
+            ctx.fillText(short, cx - radius * 0.48, cy);
+        }
+
+        // Below the clock face: Calendar
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        const calY = cy + radius + 20;
+        const calX = cb.x + 10;
+
+        if (this.config.calendarData) {
+            const cal = this.config.calendarData;
+            ctx.font = 'bold 13px sans-serif';
+            ctx.fillStyle = '#000000';
+            ctx.fillText('TODAY', calX, calY);
+            ctx.fillText('TOMORROW', calX + cb.width / 2, calY);
+
+            ctx.font = '12px sans-serif';
+            let ty = calY + 20;
+            const events = cal.today || [];
+            for (let i = 0; i < Math.min(3, events.length); i++) {
+                ctx.font = 'bold 12px sans-serif';
+                ctx.fillText(events[i].time, calX, ty);
+                ty += 15;
+                ctx.font = '12px sans-serif';
+                let name = events[i].name;
+                if (ctx.measureText(name).width > cb.width / 2 - 20) {
+                    while (ctx.measureText(name + '...').width > cb.width / 2 - 20 && name.length > 3) name = name.slice(0, -1);
+                    name += '...';
+                }
+                ctx.fillText(name, calX, ty);
+                ty += 18;
+            }
+
+            let ty2 = calY + 20;
+            const tmrw = cal.tomorrow || [];
+            for (let i = 0; i < Math.min(3, tmrw.length); i++) {
+                ctx.font = 'bold 12px sans-serif';
+                ctx.fillText(tmrw[i].time, calX + cb.width / 2, ty2);
+                ty2 += 15;
+                ctx.font = '12px sans-serif';
+                let name = tmrw[i].name;
+                if (ctx.measureText(name).width > cb.width / 2 - 20) {
+                    while (ctx.measureText(name + '...').width > cb.width / 2 - 20 && name.length > 3) name = name.slice(0, -1);
+                    name += '...';
+                }
+                ctx.fillText(name, calX + cb.width / 2, ty2);
+                ty2 += 18;
+            }
+        }
+    }
+}
+
+class BrutalistComponent extends ComponentBase {
+    constructor(config = {}) {
+        super('brutalist', {
+            weatherData: config.weatherData || null,
+            calendarData: config.calendarData || null,
+            pokemonData: config.pokemonData || null,
+            ...config
+        });
+    }
+
+    async render(ctx, bounds) {
+        const cb = this.getContentBounds(bounds);
+        const width = cb.width;
+        const height = cb.height;
+
+        // Background
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(cb.x, cb.y, width, height);
+
+        const temp = (this.config.weatherData && this.config.weatherData.current)
+            ? this.config.weatherData.current.temperature || '--°'
+            : '--°';
+
+        // MASSIVE temperature — 350px, intentionally bleeds
+        ctx.fillStyle = '#000000';
+        ctx.font = 'bold 350px sans-serif';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        ctx.fillText(temp, cb.x - 15, cb.y - 60);
+
+        // Thin line separator
+        const lineY = cb.y + 310;
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(cb.x, lineY);
+        ctx.lineTo(cb.x + width, lineY);
+        ctx.stroke();
+
+        // Condition — small, uppercase, tracked
+        if (this.config.weatherData && this.config.weatherData.current) {
+            ctx.font = '16px sans-serif';
+            ctx.fillStyle = '#000000';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'top';
+            const condText = (this.config.weatherData.current.condition || '').toUpperCase();
+            ctx.fillText(condText, cb.x, lineY + 8);
+        }
+
+        // Date + time — right-aligned, small
+        const now = new Date();
+        ctx.font = 'bold 16px sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText(format(now, 'EEEE, MMMM do').toUpperCase(), cb.x + width, lineY + 8);
+        ctx.font = '14px sans-serif';
+        ctx.fillText(format(now, 'h:mm a'), cb.x + width, lineY + 28);
+
+        // Forecast in a row
+        const foreY = lineY + 55;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(cb.x, foreY - 5);
+        ctx.lineTo(cb.x + width, foreY - 5);
+        ctx.stroke();
+
+        if (this.config.weatherData && this.config.weatherData.forecast) {
+            const forecast = this.config.weatherData.forecast;
+            ctx.textAlign = 'left';
+            const colW = width / 3;
+            for (let i = 0; i < Math.min(3, forecast.length); i++) {
+                const fx = cb.x + i * colW;
+                ctx.font = 'bold 14px sans-serif';
+                ctx.fillText(forecast[i].date.split(',')[0], fx, foreY);
+                ctx.font = '13px sans-serif';
+                ctx.fillText(`${forecast[i].highTemp}/${forecast[i].lowTemp}`, fx, foreY + 18);
+                let cond = forecast[i].condition;
+                if (ctx.measureText(cond).width > colW - 10) {
+                    while (ctx.measureText(cond + '...').width > colW - 10 && cond.length > 3) cond = cond.slice(0, -1);
+                    cond += '...';
+                }
+                ctx.fillText(cond, fx, foreY + 34);
+            }
+        }
+
+        // Calendar section
+        const calY = foreY + 65;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(cb.x, calY - 8);
+        ctx.lineTo(cb.x + width, calY - 8);
+        ctx.stroke();
+
+        if (this.config.calendarData) {
+            const cal = this.config.calendarData;
+            const halfW = width / 2;
+
+            ctx.font = 'bold 14px sans-serif';
+            ctx.textAlign = 'left';
+            ctx.fillText('TODAY', cb.x, calY);
+            ctx.fillText('TOMORROW', cb.x + halfW, calY);
+
+            ctx.font = '13px sans-serif';
+            let ty = calY + 22;
+            for (let i = 0; i < Math.min(4, (cal.today || []).length); i++) {
+                const e = cal.today[i];
+                ctx.font = 'bold 13px sans-serif';
+                ctx.fillText(e.time, cb.x, ty);
+                ty += 16;
+                ctx.font = '13px sans-serif';
+                let name = e.name;
+                if (ctx.measureText(name).width > halfW - 10) {
+                    while (ctx.measureText(name + '...').width > halfW - 10 && name.length > 3) name = name.slice(0, -1);
+                    name += '...';
+                }
+                ctx.fillText(name, cb.x, ty);
+                ty += 20;
+            }
+
+            let ty2 = calY + 22;
+            for (let i = 0; i < Math.min(4, (cal.tomorrow || []).length); i++) {
+                const e = cal.tomorrow[i];
+                ctx.font = 'bold 13px sans-serif';
+                ctx.fillText(e.time, cb.x + halfW, ty2);
+                ty2 += 16;
+                ctx.font = '13px sans-serif';
+                let name = e.name;
+                if (ctx.measureText(name).width > halfW - 10) {
+                    while (ctx.measureText(name + '...').width > halfW - 10 && name.length > 3) name = name.slice(0, -1);
+                    name += '...';
+                }
+                ctx.fillText(name, cb.x + halfW, ty2);
+                ty2 += 20;
+            }
+        }
+
+        // Pokemon sprite bottom-right
+        if (this.config.pokemonData && this.config.pokemonData.spritePath) {
+            try {
+                const image = await loadImage(this.config.pokemonData.spritePath);
+                const spriteSize = 80;
+                ctx.drawImage(image, cb.x + width - spriteSize - 5, cb.y + height - spriteSize - 30, spriteSize, spriteSize);
+            } catch (e) { /* skip */ }
+        }
+
+        // Quote at very bottom
+        ctx.font = 'italic 12px sans-serif';
+        ctx.fillStyle = '#888888';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'bottom';
+        // Load quote
+        try {
+            const quotesPath = require('path').join(__dirname, 'quotes.json');
+            const quotes = JSON.parse(require('fs').readFileSync(quotesPath, 'utf8'));
+            const dayOfYear = Math.floor((now - new Date(now.getFullYear(), 0, 0)) / (1000 * 60 * 60 * 24));
+            const q = quotes[dayOfYear % quotes.length];
+            ctx.fillText(`"${q.text}" — ${q.author}`, cb.x, cb.y + height - 5);
+        } catch (e) { /* skip */ }
+    }
+}
+
+class SwissPosterComponent extends ComponentBase {
+    constructor(config = {}) {
+        super('swiss-poster', {
+            weatherData: config.weatherData || null,
+            calendarData: config.calendarData || null,
+            pokemonData: config.pokemonData || null,
+            ...config
+        });
+    }
+
+    getWeatherSymbol(iconType) {
+        const symbols = {
+            'clear': '☀', 'mostly-clear': '☀', 'partly-cloudy': '☁',
+            'cloudy': '☁', 'fog': '☁', 'drizzle': '☂', 'rain': '☂',
+            'heavy-rain': '☂', 'snow': '❄', 'heavy-snow': '❄',
+            'freezing-rain': '❄', 'freezing-drizzle': '❄',
+            'showers': '☂', 'heavy-showers': '☂', 'snow-showers': '❄',
+            'thunderstorm': '⚡', 'thunderstorm-hail': '⚡', 'unknown': '?'
+        };
+        return symbols[iconType] || '?';
+    }
+
+    wrapText(ctx, text, maxWidth) {
+        const words = text.split(' ');
+        const lines = [];
+        let currentLine = '';
+        for (const word of words) {
+            const testLine = currentLine ? `${currentLine} ${word}` : word;
+            if (ctx.measureText(testLine).width > maxWidth && currentLine) {
+                lines.push(currentLine);
+                currentLine = word;
+            } else {
+                currentLine = testLine;
+            }
+        }
+        if (currentLine) lines.push(currentLine);
+        return lines;
+    }
+
+    truncate(ctx, text, maxWidth) {
+        if (ctx.measureText(text).width <= maxWidth) return text;
+        while (ctx.measureText(text + '...').width > maxWidth && text.length > 3) text = text.slice(0, -1);
+        return text + '...';
+    }
+
+    async render(ctx, bounds) {
+        const cb = this.getContentBounds(bounds);
+        const w = cb.width;
+        const h = cb.height;
+        const x = cb.x;
+        const y = cb.y;
+
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(x, y, w, h);
+
+        const now = new Date();
+
+        // === TOP ZONE: Thick rule + time + date ===
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(x, y, w, 6);
+
+        // Time — left-aligned with AM/PM inline
+        ctx.font = 'bold 72px sans-serif';
+        ctx.fillStyle = '#000000';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        const timeText = format(now, 'h:mm');
+        ctx.fillText(timeText, x, y + 16);
+        const timeWidth = ctx.measureText(timeText).width;
+        ctx.font = '24px sans-serif';
+        ctx.fillText(format(now, 'a').toUpperCase(), x + timeWidth + 8, y + 52);
+
+        // Date — right-aligned, stacked
+        ctx.font = 'bold 18px sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText(format(now, 'EEEE'), x + w, y + 24);
+        ctx.font = '16px sans-serif';
+        ctx.fillText(format(now, 'MMMM do, yyyy'), x + w, y + 48);
+
+        // === Thick rule ===
+        const rule1 = y + 102;
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(x, rule1, w, 4);
+
+        // === WEATHER ZONE ===
+        const temp = (this.config.weatherData && this.config.weatherData.current)
+            ? this.config.weatherData.current.temperature || '--°'
+            : '--°';
+
+        ctx.font = 'bold 100px sans-serif';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        ctx.fillText(temp, x, rule1 + 10);
+
+        // Vertical divider
+        const divX = x + w * 0.5;
+        ctx.fillRect(divX, rule1 + 8, 2, 105);
+
+        // Condition + details right of divider
+        const rightCol = divX + 14;
+        if (this.config.weatherData && this.config.weatherData.current) {
+            const cur = this.config.weatherData.current;
+            ctx.font = 'bold 22px sans-serif';
+            ctx.textAlign = 'left';
+            ctx.fillText((cur.condition || '').toUpperCase(), rightCol, rule1 + 14);
+
+            ctx.font = '15px sans-serif';
+            let detailY = rule1 + 44;
+            if (cur.windSpeed) { ctx.fillText(`Wind ${cur.windSpeed}`, rightCol, detailY); detailY += 20; }
+            if (cur.humidity) { ctx.fillText(`Humidity ${cur.humidity}`, rightCol, detailY); detailY += 20; }
+        }
+
+        // === Thin rule ===
+        const rule2 = rule1 + 120;
+        ctx.fillRect(x, rule2, w, 1);
+
+        // === FORECAST: Three ruled columns with weather symbols ===
+        const fy = rule2 + 10;
+        if (this.config.weatherData && this.config.weatherData.forecast) {
+            const forecast = this.config.weatherData.forecast;
+            const colW = w / 3;
+
+            for (let i = 0; i < Math.min(3, forecast.length); i++) {
+                const fx = x + i * colW;
+                const pad = i > 0 ? 10 : 0;
+                if (i > 0) {
+                    ctx.fillStyle = '#000000';
+                    ctx.fillRect(fx, fy - 2, 1, 62);
+                }
+                const symbol = forecast[i].icon ? this.getWeatherSymbol(forecast[i].icon) : '';
+                ctx.font = 'bold 15px sans-serif';
+                ctx.fillStyle = '#000000';
+                ctx.textAlign = 'left';
+                ctx.fillText(forecast[i].date.split(',')[0].toUpperCase(), fx + pad, fy);
+                ctx.font = '15px sans-serif';
+                ctx.fillText(`${forecast[i].highTemp}/${forecast[i].lowTemp} ${symbol}`, fx + pad, fy + 20);
+                ctx.font = '13px sans-serif';
+                ctx.fillText(this.truncate(ctx, forecast[i].condition, colW - pad - 8), fx + pad, fy + 40);
+            }
+        }
+
+        // === Thick rule before calendar ===
+        const rule3 = fy + 68;
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(x, rule3, w, 4);
+
+        // === CALENDAR ===
+        const calY = rule3 + 12;
+        let ty = calY;
+        let ty2 = calY;
+        if (this.config.calendarData) {
+            const cal = this.config.calendarData;
+            const halfW = w / 2;
+
+            // Vertical divider — sized to content
+            const maxEvents = Math.max((cal.today || []).length, (cal.tomorrow || []).length);
+            const divHeight = Math.min(24 + maxEvents * 36, 200);
+            ctx.fillRect(x + halfW - 1, calY, 1, divHeight);
+
+            ctx.font = 'bold 16px sans-serif';
+            ctx.textAlign = 'left';
+            ctx.fillText('TODAY', x, calY);
+            ctx.fillText('TOMORROW', x + halfW + 10, calY);
+
+            ty = calY + 26;
+            for (let i = 0; i < Math.min(4, (cal.today || []).length); i++) {
+                const e = cal.today[i];
+                ctx.font = 'bold 14px sans-serif';
+                ctx.fillText(e.time, x, ty);
+                ty += 17;
+                ctx.font = '13px sans-serif';
+                ctx.fillText(this.truncate(ctx, e.name, halfW - 15), x, ty);
+                ty += 19;
+            }
+
+            ty2 = calY + 26;
+            for (let i = 0; i < Math.min(4, (cal.tomorrow || []).length); i++) {
+                const e = cal.tomorrow[i];
+                ctx.font = 'bold 14px sans-serif';
+                ctx.fillText(e.time, x + halfW + 10, ty2);
+                ty2 += 17;
+                ctx.font = '13px sans-serif';
+                ctx.fillText(this.truncate(ctx, e.name, halfW - 15), x + halfW + 10, ty2);
+                ty2 += 19;
+            }
+        }
+
+        // === Thin rule + multi-line quote + status ===
+        // Anchor quote right after calendar content ends
+        const calEnd = Math.max(ty, ty2) + 16;
+        // Thin rule before quote
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(x, calEnd, w, 1);
+
+        try {
+            const quotesPath = require('path').join(__dirname, 'quotes.json');
+            const quotes = JSON.parse(require('fs').readFileSync(quotesPath, 'utf8'));
+            const dayOfYear = Math.floor((now - new Date(now.getFullYear(), 0, 0)) / (1000 * 60 * 60 * 24));
+            const q = quotes[dayOfYear % quotes.length];
+
+            ctx.font = 'italic 14px sans-serif';
+            ctx.fillStyle = '#555555';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'top';
+
+            const quoteLines = this.wrapText(ctx, `"${q.text}"`, w);
+            let qy = calEnd + 10;
+            for (const line of quoteLines.slice(0, 3)) {
+                ctx.fillText(line, x, qy);
+                qy += 18;
+            }
+            ctx.font = '13px sans-serif';
+            const attr = q.source ? `— ${q.author}, ${q.source}` : `— ${q.author}`;
+            ctx.fillText(attr, x, qy);
+        } catch (e) { /* skip */ }
+
+        // Pokemon sprite — large, in bottom whitespace
+        if (this.config.pokemonData && this.config.pokemonData.spritePath) {
+            try {
+                const image = await loadImage(this.config.pokemonData.spritePath);
+                const spriteSize = 140;
+                ctx.drawImage(image, x + w - spriteSize - 10, y + h - spriteSize - 30, spriteSize, spriteSize);
+            } catch (e) { /* skip */ }
+        }
+
+        // Bottom rule + status at very bottom
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(x, y + h - 22, w, 1);
+        ctx.font = '10px sans-serif';
+        ctx.fillStyle = '#AAAAAA';
+        ctx.textBaseline = 'top';
+
+        // Build status parts
+        const statusParts = [];
+        if (this.config.deviceStats && this.config.deviceStats.battery && this.config.deviceStats.battery.level !== 'unknown') {
+            const level = parseInt(this.config.deviceStats.battery.level);
+            let icon = '█';
+            if (level <= 10) icon = '▁';
+            else if (level <= 25) icon = '▃';
+            else if (level <= 50) icon = '▅';
+            else if (level <= 75) icon = '▇';
+            statusParts.push(`${icon} ${level}%`);
+        }
+        statusParts.push(`Updated ${format(now, 'h:mm a')}`);
+
+        ctx.textAlign = 'center';
+        ctx.fillText(statusParts.join('  ·  '), x + w / 2, y + h - 14);
+    }
+}
+
 class DashboardEngine {
     constructor(config = {}) {
         this.width = config.width || 600;
@@ -1116,6 +1785,10 @@ class DashboardEngine {
         this.registerComponent('title', TitleComponent);
         this.registerComponent('pokemon-sprite', PokemonSpriteComponent);
         this.registerComponent('calendar', CalendarComponent);
+        this.registerComponent('weather-illustration', WeatherIllustrationComponent);
+        this.registerComponent('watch-face', WatchFaceComponent);
+        this.registerComponent('brutalist', BrutalistComponent);
+        this.registerComponent('swiss-poster', SwissPosterComponent);
         this.registerComponent('status-bar', StatusBarComponent);
         this.registerComponent('quote', QuoteComponent);
     }

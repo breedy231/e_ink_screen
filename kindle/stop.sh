@@ -294,6 +294,12 @@ main() {
         log_info "No dashboard loop PID file found"
     fi
 
+    # Re-enable pillow UI overlay
+    if [ -x "/usr/bin/lipc-set-prop" ]; then
+        /usr/bin/lipc-set-prop com.lab126.pillow disableEnablePillow enable 2>/dev/null || true
+        log_info "Pillow UI re-enabled"
+    fi
+
     # Re-enable screen sleep
     restore_screen_sleep
 
