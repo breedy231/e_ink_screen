@@ -188,7 +188,7 @@ class ClockComponent extends ComponentBase {
         this.drawContainer(ctx, bounds);
         const contentBounds = this.getContentBounds(bounds);
 
-        const now = roundTimeToNearest(new Date(), 5);
+        const now = roundTimeToNearest(new Date(), 15);
         const timeStr = format(now, this.config.format);
 
         this.setTextStyle(ctx);
@@ -266,7 +266,7 @@ class AnalogClockComponent extends ComponentBase {
         }
 
         // Current time (rounded to nearest 5 min)
-        const now = roundTimeToNearest(new Date(), 5);
+        const now = roundTimeToNearest(new Date(), 15);
         const hours = now.getHours() % 12;
         const minutes = now.getMinutes();
 
@@ -1577,7 +1577,7 @@ class SwissPosterComponent extends ComponentBase {
         ctx.fillRect(x, y, w, h);
 
         const nowRaw = new Date();
-        const now = roundTimeToNearest(nowRaw, 5);
+        const now = roundTimeToNearest(nowRaw, 15);
 
         // === TOP ZONE: Thick rule + time + date ===
         ctx.fillStyle = '#000000';
