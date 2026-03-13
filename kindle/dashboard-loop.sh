@@ -26,7 +26,7 @@ LOG_FILE="$SCRIPT_DIR/logs/dashboard-loop.log"
 PID_FILE="$SCRIPT_DIR/dashboard-loop.pid"
 
 # Defaults
-UPDATE_INTERVAL=300
+UPDATE_INTERVAL=900
 RUN_ONCE=false
 WIFI_WAIT_MAX=30
 
