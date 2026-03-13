@@ -166,6 +166,11 @@ main() {
 
     write_pid
 
+    # Sync clock before anything else (Kindle clock drifts without framework)
+    if command -v ntpdate >/dev/null 2>&1; then
+        ntpdate -s pool.ntp.org 2>/dev/null && log_msg "Clock synced via NTP" || log_msg "NTP sync failed (continuing with current time)"
+    fi
+
     # Stop framework, disable UI overlay, and prevent sleep
     stop_framework
     sleep 2
@@ -189,6 +194,11 @@ main() {
     fi
 
     while true; do
+        # Re-sync clock each cycle to prevent drift
+        if command -v ntpdate >/dev/null 2>&1; then
+            ntpdate -s pool.ntp.org 2>/dev/null || true
+        fi
+
         # Calculate sleep until next aligned boundary + buffer
         # e.g. with 900s interval (15 min), aligns to :00/:15/:30/:45
         now=$(date +%s)
