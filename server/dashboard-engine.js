@@ -6,6 +6,16 @@ const path = require('path');
 const { format } = require('date-fns');
 
 /**
+ * Round a Date to the nearest N minutes.
+ * Eliminates clock skew from fetch/render delay.
+ * e.g. roundToNearest(new Date('2:29'), 5) => 2:30
+ */
+function roundTimeToNearest(date, intervalMinutes = 5) {
+    const ms = intervalMinutes * 60 * 1000;
+    return new Date(Math.round(date.getTime() / ms) * ms);
+}
+
+/**
  * Flexible Dashboard Layout Engine for Kindle E-ink Display
  * Modular component system with grid-based positioning
  */
@@ -178,7 +188,7 @@ class ClockComponent extends ComponentBase {
         this.drawContainer(ctx, bounds);
         const contentBounds = this.getContentBounds(bounds);
 
-        const now = new Date();
+        const now = roundTimeToNearest(new Date(), 5);
         const timeStr = format(now, this.config.format);
 
         this.setTextStyle(ctx);
@@ -255,8 +265,8 @@ class AnalogClockComponent extends ComponentBase {
             ctx.fill();
         }
 
-        // Current time
-        const now = new Date();
+        // Current time (rounded to nearest 5 min)
+        const now = roundTimeToNearest(new Date(), 5);
         const hours = now.getHours() % 12;
         const minutes = now.getMinutes();
 
@@ -1566,13 +1576,14 @@ class SwissPosterComponent extends ComponentBase {
         ctx.fillStyle = '#FFFFFF';
         ctx.fillRect(x, y, w, h);
 
-        const now = new Date();
+        const nowRaw = new Date();
+        const now = roundTimeToNearest(nowRaw, 5);
 
         // === TOP ZONE: Thick rule + time + date ===
         ctx.fillStyle = '#000000';
         ctx.fillRect(x, y, w, 6);
 
-        // Time — left-aligned with AM/PM inline
+        // Time — left-aligned with AM/PM inline (rounded to nearest 5 min)
         ctx.font = 'bold 72px sans-serif';
         ctx.fillStyle = '#000000';
         ctx.textAlign = 'left';
@@ -1754,7 +1765,7 @@ class SwissPosterComponent extends ComponentBase {
             else if (level <= 75) icon = '▇';
             statusParts.push(`${icon} ${level}%`);
         }
-        statusParts.push(`Updated ${format(now, 'h:mm a')}`);
+        statusParts.push(`Updated ${format(nowRaw, 'h:mm a')}`);
 
         ctx.textAlign = 'center';
         ctx.fillText(statusParts.join('  ·  '), x + w / 2, y + h - 14);
