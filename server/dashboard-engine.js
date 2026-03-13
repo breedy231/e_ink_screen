@@ -6,13 +6,13 @@ const path = require('path');
 const { format } = require('date-fns');
 
 /**
- * Round a Date to the nearest N minutes.
- * Eliminates clock skew from fetch/render delay.
- * e.g. roundToNearest(new Date('2:29'), 5) => 2:30
+ * Round a Date down to the last N-minute boundary.
+ * Shows the interval you're currently in, not the next one.
+ * e.g. 3:40 with 15min interval => 3:30, 3:28 => 3:15
  */
-function roundTimeToNearest(date, intervalMinutes = 5) {
+function roundTimeToNearest(date, intervalMinutes = 15) {
     const ms = intervalMinutes * 60 * 1000;
-    return new Date(Math.round(date.getTime() / ms) * ms);
+    return new Date(Math.floor(date.getTime() / ms) * ms);
 }
 
 /**
