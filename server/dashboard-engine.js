@@ -1742,8 +1742,8 @@ class SwissPosterComponent extends ComponentBase {
         if (this.config.pokemonData && this.config.pokemonData.spritePath) {
             try {
                 const image = await loadImage(this.config.pokemonData.spritePath);
-                const spriteSize = 140;
-                ctx.drawImage(image, x + w - spriteSize - 10, y + h - spriteSize - 30, spriteSize, spriteSize);
+                const spriteSize = 130;
+                ctx.drawImage(image, x + w - spriteSize - 10, y + h - spriteSize - 28, spriteSize, spriteSize);
             } catch (e) { /* skip */ }
         }
 
