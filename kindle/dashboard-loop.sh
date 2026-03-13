@@ -27,6 +27,7 @@ PID_FILE="$SCRIPT_DIR/dashboard-loop.pid"
 
 # Defaults
 UPDATE_INTERVAL=900
+ALIGN_BUFFER=30       # seconds past the boundary to fetch (ensures server generates correct time)
 RUN_ONCE=false
 WIFI_WAIT_MAX=30
 
@@ -178,16 +179,36 @@ main() {
         /usr/sbin/eips -f -c 2>/dev/null || true
     fi
 
-    while true; do
-        do_update
+    # First update immediately
+    do_update
 
-        if [ "$RUN_ONCE" = "true" ]; then
-            log_msg "Run-once mode, exiting"
-            break
+    if [ "$RUN_ONCE" = "true" ]; then
+        log_msg "Run-once mode, exiting"
+        cleanup
+        return
+    fi
+
+    while true; do
+        # Calculate sleep until next aligned boundary + buffer
+        # e.g. with 900s interval (15 min), aligns to :00/:15/:30/:45
+        now=$(date +%s)
+        remainder=$((now % UPDATE_INTERVAL))
+        sleep_time=$((UPDATE_INTERVAL - remainder + ALIGN_BUFFER))
+
+        # If buffer puts us past the NEXT boundary, we're already close — just use one interval
+        if [ "$sleep_time" -gt "$((UPDATE_INTERVAL + ALIGN_BUFFER))" ]; then
+            sleep_time=$((sleep_time - UPDATE_INTERVAL))
         fi
 
-        sleep "$UPDATE_INTERVAL"
+        next_epoch=$((now + sleep_time))
+        # Format next wake time for logging (busybox date -d @epoch may not work, use arithmetic)
+        next_min=$(( (next_epoch / 60) % 60 ))
+        next_hour=$(( (next_epoch / 3600) % 24 ))
+        log_msg "Sleeping ${sleep_time}s (next fetch ~${next_hour}:$(printf '%02d' $next_min) UTC)"
+
+        sleep "$sleep_time"
         rotate_log
+        do_update
     done
 
     cleanup
