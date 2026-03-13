@@ -20,7 +20,8 @@ class PokemonService {
         this.maxPokemonId = options.maxPokemonId || 151; // Gen 1 Pokemon only for retro vibe
         this.spriteType = options.spriteType || 'pixel'; // 'pixel' for retro sprites, 'artwork' for high-res
         this.optimizerScript = options.optimizerScript || path.join(__dirname, 'optimize-sprite-for-eink.py');
-        this.pythonPath = options.pythonPath || path.join(__dirname, '..', 'test_env', 'bin', 'python3');
+        const venvPython = path.join(__dirname, '..', 'test_env', 'bin', 'python3');
+        this.pythonPath = options.pythonPath || (fs.existsSync(venvPython) ? venvPython : '/usr/bin/python3');
 
         // Ensure cache directory exists
         if (!fs.existsSync(this.cacheDir)) {

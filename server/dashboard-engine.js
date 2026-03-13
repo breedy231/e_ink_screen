@@ -144,6 +144,12 @@ class ClockComponent extends ComponentBase {
         });
     }
 
+    getTextX(contentBounds) {
+        if (this.config.textAlign === 'left') return contentBounds.x;
+        if (this.config.textAlign === 'right') return contentBounds.x + contentBounds.width;
+        return contentBounds.x + contentBounds.width / 2;
+    }
+
     render(ctx, bounds) {
         this.drawContainer(ctx, bounds);
         const contentBounds = this.getContentBounds(bounds);
@@ -162,7 +168,8 @@ class ClockComponent extends ComponentBase {
         const startY = contentBounds.y + (contentBounds.height - totalHeight) / 2;
 
         // Main time
-        ctx.fillText(timeStr, contentBounds.x + contentBounds.width / 2, startY);
+        const textX = this.getTextX(contentBounds);
+        ctx.fillText(timeStr, textX, startY);
 
         // Seconds if enabled
         if (this.config.showSeconds) {
@@ -171,7 +178,7 @@ class ClockComponent extends ComponentBase {
 
             ctx.font = `${this.config.fontWeight} ${Math.round(originalSize * this.config.secondsSize)}px ${this.config.fontFamily}`;
             const secondsY = startY + timeHeight + 10;
-            ctx.fillText(secondsStr, contentBounds.x + contentBounds.width / 2, secondsY);
+            ctx.fillText(secondsStr, textX, secondsY);
         }
     }
 }
@@ -189,6 +196,12 @@ class DateComponent extends ComponentBase {
         });
     }
 
+    getTextX(contentBounds) {
+        if (this.config.textAlign === 'left') return contentBounds.x;
+        if (this.config.textAlign === 'right') return contentBounds.x + contentBounds.width;
+        return contentBounds.x + contentBounds.width / 2;
+    }
+
     render(ctx, bounds) {
         this.drawContainer(ctx, bounds);
         const contentBounds = this.getContentBounds(bounds);
@@ -198,15 +211,18 @@ class DateComponent extends ComponentBase {
 
         const lineHeight = this.config.fontSize * 1.2;
         let currentY = contentBounds.y;
+        const textX = this.getTextX(contentBounds);
 
-        // Day of week
-        const dayStr = format(now, this.config.dayFormat);
-        ctx.fillText(dayStr, contentBounds.x + contentBounds.width / 2, currentY);
-        currentY += lineHeight;
+        // Day of week (skip if empty)
+        if (this.config.dayFormat) {
+            const dayStr = format(now, this.config.dayFormat);
+            ctx.fillText(dayStr, textX, currentY);
+            currentY += lineHeight;
+        }
 
         // Full date
         const dateStr = format(now, this.config.dateFormat);
-        ctx.fillText(dateStr, contentBounds.x + contentBounds.width / 2, currentY);
+        ctx.fillText(dateStr, textX, currentY);
 
         // Day of year if enabled
         if (this.config.showDayOfYear) {
@@ -217,7 +233,7 @@ class DateComponent extends ComponentBase {
 
             const originalSize = this.config.fontSize;
             ctx.font = `${this.config.fontWeight} ${Math.round(originalSize * 0.7)}px ${this.config.fontFamily}`;
-            ctx.fillText(extraInfo, contentBounds.x + contentBounds.width / 2, currentY);
+            ctx.fillText(extraInfo, textX, currentY);
         }
     }
 }
@@ -312,14 +328,16 @@ class DeviceStatsComponent extends ComponentBase {
         let currentY = contentBounds.y;
         const lineHeight = this.config.fontSize * 1.3;
 
-        // Title
+        // Title (skip if titleSize is 0 or title is empty)
         const originalSize = this.config.fontSize;
-        ctx.font = `bold ${Math.round(originalSize * this.config.titleSize)}px ${this.config.fontFamily}`;
-        ctx.fillText(this.config.title, contentBounds.x, currentY);
+        if (this.config.titleSize > 0 && this.config.title) {
+            ctx.font = `bold ${Math.round(originalSize * this.config.titleSize)}px ${this.config.fontFamily}`;
+            ctx.fillText(this.config.title, contentBounds.x, currentY);
+            currentY += Math.round(originalSize * this.config.titleSize) + 10;
+        }
 
         // Reset font for stats
         ctx.font = `${this.config.fontWeight} ${originalSize}px ${this.config.fontFamily}`;
-        currentY += Math.round(originalSize * this.config.titleSize) + 10;
 
         const stats = [];
 
@@ -381,6 +399,135 @@ class DeviceStatsComponent extends ComponentBase {
     }
 }
 
+class QuoteComponent extends ComponentBase {
+    constructor(config = {}) {
+        super('quote', {
+            fontSize: 13,
+            fontWeight: 'normal',
+            textAlign: 'left',
+            textColor: config.textColor || '#444444',
+            ...config
+        });
+    }
+
+    getQuote() {
+        // Load quotes from external JSON file
+        const quotesPath = path.join(__dirname, 'quotes.json');
+        let quotes;
+        try {
+            quotes = JSON.parse(fs.readFileSync(quotesPath, 'utf8'));
+        } catch (error) {
+            return { text: "Add quotes to server/quotes.json", author: "", source: "" };
+        }
+
+        // Use day of year as seed so quote changes daily but is stable within the day
+        const now = new Date();
+        const start = new Date(now.getFullYear(), 0, 0);
+        const dayOfYear = Math.floor((now - start) / (1000 * 60 * 60 * 24));
+        return quotes[dayOfYear % quotes.length];
+    }
+
+    render(ctx, bounds) {
+        this.drawContainer(ctx, bounds);
+        const contentBounds = this.getContentBounds(bounds);
+
+        const quote = this.getQuote();
+        const originalSize = this.config.fontSize;
+        const lineHeight = originalSize * 1.4;
+
+        ctx.fillStyle = this.config.textColor;
+        ctx.textBaseline = 'top';
+        ctx.textAlign = 'left';
+
+        // Quote text (italic)
+        ctx.font = `${this.config.fontWeight} italic ${originalSize}px ${this.config.fontFamily}`;
+        const words = quote.text.split(' ');
+        const lines = [];
+        let currentLine = '';
+
+        for (const word of words) {
+            const testLine = currentLine ? `${currentLine} ${word}` : word;
+            if (ctx.measureText(testLine).width > contentBounds.width) {
+                lines.push(currentLine);
+                currentLine = word;
+            } else {
+                currentLine = testLine;
+            }
+        }
+        if (currentLine) lines.push(currentLine);
+
+        let y = contentBounds.y;
+        for (const line of lines) {
+            ctx.fillText(`${lines.indexOf(line) === 0 ? '"' : ''}${line}${lines.indexOf(line) === lines.length - 1 ? '"' : ''}`, contentBounds.x, y);
+            y += lineHeight;
+        }
+
+        // Attribution
+        ctx.font = `${originalSize * 0.9}px ${this.config.fontFamily}`;
+        const attribution = quote.source ? `— ${quote.author}, ${quote.source}` : `— ${quote.author}`;
+        ctx.fillText(attribution, contentBounds.x, y);
+    }
+}
+
+class StatusBarComponent extends ComponentBase {
+    constructor(config = {}) {
+        super('status-bar', {
+            fontSize: 11,
+            fontWeight: 'normal',
+            textAlign: 'left',
+            textColor: config.textColor || '#888888',
+            deviceStats: config.deviceStats || null,
+            ...config
+        });
+    }
+
+    render(ctx, bounds) {
+        this.drawContainer(ctx, bounds);
+        const contentBounds = this.getContentBounds(bounds);
+
+        const originalSize = this.config.fontSize;
+        ctx.font = `${this.config.fontWeight} ${originalSize}px ${this.config.fontFamily}`;
+        ctx.fillStyle = this.config.textColor;
+        ctx.textBaseline = 'top';
+
+        const parts = [];
+        const ds = this.config.deviceStats;
+
+        // Battery with level indicator
+        if (ds && ds.battery && ds.battery.level !== 'unknown') {
+            const level = parseInt(ds.battery.level);
+            let icon = '█';
+            if (level <= 10) icon = '▁';
+            else if (level <= 25) icon = '▃';
+            else if (level <= 50) icon = '▅';
+            else if (level <= 75) icon = '▇';
+            parts.push(`${icon} ${level}%`);
+        }
+
+        // WiFi status
+        if (ds && ds.wifi && ds.wifi.status !== 'unknown') {
+            const connected = ds.wifi.status === 'connected';
+            parts.push(connected ? 'WiFi ✓' : 'WiFi ✗');
+        }
+
+        // Generated timestamp
+        const now = new Date();
+        const timeStr = now.toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true,
+            timeZone: 'America/Chicago'
+        });
+        parts.push(`Updated ${timeStr}`);
+
+        const line = parts.join('  ·  ');
+
+        // Center the status bar
+        ctx.textAlign = 'center';
+        ctx.fillText(line, contentBounds.x + contentBounds.width / 2, contentBounds.y);
+    }
+}
+
 class WeatherComponent extends ComponentBase {
     constructor(config = {}) {
         super('weather', {
@@ -403,24 +550,25 @@ class WeatherComponent extends ComponentBase {
      * Get weather symbol for e-ink display (text-based icons)
      */
     getWeatherSymbol(iconType) {
+        // Basic Unicode symbols (no emoji) - renders on all canvas implementations
         const symbols = {
             'clear': '☀',
-            'mostly-clear': '🌤',
-            'partly-cloudy': '⛅',
+            'mostly-clear': '☀',
+            'partly-cloudy': '☁',
             'cloudy': '☁',
-            'fog': '🌫',
-            'drizzle': '🌦',
-            'freezing-drizzle': '🌨',
-            'rain': '🌧',
-            'heavy-rain': '⛈',
-            'freezing-rain': '🌨',
+            'fog': '☁',
+            'drizzle': '☂',
+            'freezing-drizzle': '❄',
+            'rain': '☂',
+            'heavy-rain': '☂',
+            'freezing-rain': '❄',
             'snow': '❄',
-            'heavy-snow': '🌨',
-            'showers': '🌦',
-            'heavy-showers': '⛈',
-            'snow-showers': '🌨',
-            'thunderstorm': '⛈',
-            'thunderstorm-hail': '⛈',
+            'heavy-snow': '❄',
+            'showers': '☂',
+            'heavy-showers': '☂',
+            'snow-showers': '❄',
+            'thunderstorm': '⚡',
+            'thunderstorm-hail': '⚡',
             'unknown': '?'
         };
 
@@ -436,14 +584,16 @@ class WeatherComponent extends ComponentBase {
         let currentY = contentBounds.y;
         const lineHeight = this.config.fontSize * 1.3;
 
-        // Title
+        // Title (skip if titleSize is 0 or title is empty)
         const originalSize = this.config.fontSize;
-        ctx.font = `bold ${Math.round(originalSize * this.config.titleSize)}px ${this.config.fontFamily}`;
-        ctx.fillText(this.config.title, contentBounds.x, currentY);
+        if (this.config.titleSize > 0 && this.config.title) {
+            ctx.font = `bold ${Math.round(originalSize * this.config.titleSize)}px ${this.config.fontFamily}`;
+            ctx.fillText(this.config.title, contentBounds.x, currentY);
+            currentY += Math.round(originalSize * this.config.titleSize) + 10;
+        }
 
         // Reset font for weather info
         ctx.font = `${this.config.fontWeight} ${originalSize}px ${this.config.fontFamily}`;
-        currentY += Math.round(originalSize * this.config.titleSize) + 10;
 
         if (!this.config.weatherData) {
             ctx.fillText('Weather data unavailable', contentBounds.x, currentY);
@@ -456,53 +606,111 @@ class WeatherComponent extends ComponentBase {
         if (this.config.showCurrent && weather.current) {
             const current = weather.current;
 
-            // Temperature and condition with weather symbol
-            ctx.font = `bold ${Math.round(originalSize * 1.2)}px ${this.config.fontFamily}`;
+            if (this.config.inline) {
+                // Inline mode: single horizontal line
+                const weatherSymbol = this.getWeatherSymbol(current.icon);
+                let parts = [`${weatherSymbol} ${current.temperature} ${current.condition}`];
+                if (this.config.showWind && current.windSpeed) parts.push(`Wind ${current.windSpeed}`);
+                if (this.config.showHumidity && current.humidity) parts.push(`Humidity ${current.humidity}`);
+                const inlineText = parts.join(' · ');
 
-            // Get weather symbol
-            const weatherSymbol = this.getWeatherSymbol(current.icon);
-            ctx.fillText(`${weatherSymbol} ${current.temperature}`, contentBounds.x, currentY);
-
-            // Condition on same line
-            const tempWidth = ctx.measureText(`${weatherSymbol} ${current.temperature}`).width;
-            ctx.font = `${this.config.fontWeight} ${originalSize}px ${this.config.fontFamily}`;
-            ctx.fillText(` ${current.condition}`, contentBounds.x + tempWidth + 5, currentY);
-
-            currentY += lineHeight * 1.3;
-
-            // Wind and humidity
-            if (this.config.showWind && current.windSpeed) {
-                ctx.fillText(`Wind: ${current.windSpeed}`, contentBounds.x, currentY);
+                ctx.font = `${this.config.fontWeight} ${originalSize}px ${this.config.fontFamily}`;
+                ctx.fillText(inlineText, contentBounds.x, currentY);
                 currentY += lineHeight;
-            }
+            } else {
+                // Temperature and condition with weather symbol
+                const heroSize = this.config.heroSize || 1.2;
+                ctx.font = `bold ${Math.round(originalSize * heroSize)}px ${this.config.fontFamily}`;
 
-            if (this.config.showHumidity && current.humidity) {
-                ctx.fillText(`Humidity: ${current.humidity}`, contentBounds.x, currentY);
-                currentY += lineHeight;
-            }
+                // Get weather symbol
+                const weatherSymbol = this.getWeatherSymbol(current.icon);
+                ctx.fillText(`${weatherSymbol} ${current.temperature}`, contentBounds.x, currentY);
 
-            currentY += 5; // Extra spacing
+                // Condition on same line
+                const tempWidth = ctx.measureText(`${weatherSymbol} ${current.temperature}`).width;
+                ctx.font = `${this.config.fontWeight} ${originalSize}px ${this.config.fontFamily}`;
+                ctx.fillText(` ${current.condition}`, contentBounds.x + tempWidth + 5, currentY);
+
+                currentY += lineHeight * 1.3;
+
+                // Wind and humidity
+                if (this.config.compactDetails && this.config.showWind && this.config.showHumidity && current.windSpeed && current.humidity) {
+                    ctx.fillText(`Wind ${current.windSpeed} · Humidity ${current.humidity}`, contentBounds.x, currentY);
+                    currentY += lineHeight;
+                } else {
+                    if (this.config.showWind && current.windSpeed) {
+                        ctx.fillText(`Wind: ${current.windSpeed}`, contentBounds.x, currentY);
+                        currentY += lineHeight;
+                    }
+
+                    if (this.config.showHumidity && current.humidity) {
+                        ctx.fillText(`Humidity: ${current.humidity}`, contentBounds.x, currentY);
+                        currentY += lineHeight;
+                    }
+                }
+
+                currentY += 5; // Extra spacing
+            }
         }
 
         // Forecast
         if (this.config.showForecast && weather.forecast && weather.forecast.length > 0) {
-            ctx.font = `bold ${Math.round(originalSize * 1.1)}px ${this.config.fontFamily}`;
-            ctx.fillText('Forecast:', contentBounds.x, currentY);
-            currentY += lineHeight;
-
-            ctx.font = `${this.config.fontWeight} ${Math.round(originalSize * 0.9)}px ${this.config.fontFamily}`;
-
             const maxDays = Math.min(this.config.forecastDays, weather.forecast.length);
-            for (let i = 0; i < maxDays; i++) {
-                const day = weather.forecast[i];
-                const forecastText = `${day.date}: ${day.highTemp}/${day.lowTemp} ${day.condition}`;
-                ctx.fillText(forecastText, contentBounds.x, currentY);
-                currentY += lineHeight * 0.9;
+
+            if (this.config.forecastColumns) {
+                // Horizontal column layout — one column per day
+                const gap = 10;
+                const colWidth = (contentBounds.width - gap * (maxDays - 1)) / maxDays;
+                const forecastSize = this.config.forecastSize || 0.9;
+
+                for (let i = 0; i < maxDays; i++) {
+                    const day = weather.forecast[i];
+                    const colX = contentBounds.x + i * (colWidth + gap);
+                    let colY = currentY;
+
+                    // Day name (bold)
+                    const dayName = day.date.split(',')[0]; // "Tue"
+                    ctx.font = `bold ${Math.round(originalSize * forecastSize)}px ${this.config.fontFamily}`;
+                    ctx.fillText(dayName, colX, colY);
+                    colY += lineHeight * 0.9;
+
+                    // Temp + icon
+                    const symbol = day.icon ? this.getWeatherSymbol(day.icon) : '';
+                    ctx.font = `${this.config.fontWeight} ${Math.round(originalSize * forecastSize)}px ${this.config.fontFamily}`;
+                    ctx.fillText(`${day.highTemp}/${day.lowTemp} ${symbol}`, colX, colY);
+                    colY += lineHeight * 0.9;
+
+                    // Condition
+                    ctx.font = `${this.config.fontWeight} ${Math.round(originalSize * forecastSize * 0.85)}px ${this.config.fontFamily}`;
+                    let condition = day.condition;
+                    while (ctx.measureText(condition).width > colWidth && condition.length > 3) {
+                        condition = condition.slice(0, -4) + '...';
+                    }
+                    ctx.fillText(condition, colX, colY);
+                }
+            } else {
+                // Vertical list layout (original)
+                if (this.config.showForecastLabel !== false) {
+                    ctx.font = `bold ${Math.round(originalSize * 1.1)}px ${this.config.fontFamily}`;
+                    ctx.fillText('Forecast:', contentBounds.x, currentY);
+                    currentY += lineHeight;
+                }
+
+                const forecastMultiplier = this.config.forecastSize || 0.9;
+                ctx.font = `${this.config.fontWeight} ${Math.round(originalSize * forecastMultiplier)}px ${this.config.fontFamily}`;
+
+                for (let i = 0; i < maxDays; i++) {
+                    const day = weather.forecast[i];
+                    const forecastSymbol = day.icon ? ` ${this.getWeatherSymbol(day.icon)}` : '';
+                    const forecastText = `${day.date}: ${day.highTemp}/${day.lowTemp}${forecastSymbol} ${day.condition}`;
+                    ctx.fillText(forecastText, contentBounds.x, currentY);
+                    currentY += lineHeight * (this.config.forecastSize || 0.9);
+                }
             }
         }
 
-        // Source info (for debugging)
-        if (weather.source) {
+        // Source info (for debugging, hidden by default with showSource: false)
+        if (weather.source && this.config.showSource !== false) {
             currentY += 5;
             ctx.font = `${this.config.fontWeight} ${Math.round(originalSize * 0.8)}px ${this.config.fontFamily}`;
             ctx.fillText(`Source: ${weather.source}`, contentBounds.x, currentY);
@@ -620,6 +828,110 @@ class PokemonSpriteComponent extends ComponentBase {
     }
 }
 
+class CalendarComponent extends ComponentBase {
+    constructor(config = {}) {
+        super('calendar', {
+            fontSize: 13,
+            fontWeight: 'normal',
+            textAlign: 'left',
+            maxEventsPerDay: config.maxEventsPerDay || 4,
+            showUpcoming: config.showUpcoming !== false,
+            calendarData: config.calendarData || null,
+            sectionHeaderSize: config.sectionHeaderSize || 1.1,
+            columnGap: config.columnGap || 12,
+            ...config
+        });
+    }
+
+    render(ctx, bounds) {
+        this.drawContainer(ctx, bounds);
+        const contentBounds = this.getContentBounds(bounds);
+
+        this.setTextStyle(ctx);
+
+        const originalSize = this.config.fontSize;
+        const lineHeight = originalSize * 1.4;
+
+        if (!this.config.calendarData) {
+            ctx.fillText('Calendar unavailable', contentBounds.x, contentBounds.y);
+            return;
+        }
+
+        const cal = this.config.calendarData;
+        const gap = this.config.columnGap;
+        const showUpcoming = this.config.showUpcoming !== false;
+        const numCols = showUpcoming ? 3 : 2;
+        const colWidth = (contentBounds.width - gap * (numCols - 1)) / numCols;
+
+        const columns = [
+            { title: 'TODAY', events: cal.today || [], x: contentBounds.x },
+            { title: 'TOMORROW', events: cal.tomorrow || [], x: contentBounds.x + colWidth + gap }
+        ];
+
+        if (showUpcoming) {
+            columns.push({ title: 'COMING UP', events: cal.upcoming || [], x: contentBounds.x + (colWidth + gap) * 2 });
+        }
+
+        for (const col of columns) {
+            let y = contentBounds.y;
+            const colMaxX = col.x + colWidth;
+
+            // Section header
+            ctx.font = `bold ${Math.round(originalSize * this.config.sectionHeaderSize)}px ${this.config.fontFamily}`;
+            ctx.fillStyle = this.config.textColor;
+            ctx.fillText(col.title, col.x, y);
+            y += lineHeight * 1.1;
+
+            ctx.font = `${this.config.fontWeight} ${originalSize}px ${this.config.fontFamily}`;
+
+            if (col.events.length === 0) {
+                ctx.fillStyle = '#888888';
+                ctx.fillText('No events', col.x, y);
+                ctx.fillStyle = this.config.textColor;
+                continue;
+            }
+
+            const maxEvents = Math.min(this.config.maxEventsPerDay, col.events.length);
+            for (let i = 0; i < maxEvents; i++) {
+                y = this.renderEvent(ctx, col.events[i], col.x, y, colMaxX, originalSize);
+            }
+
+            if (col.events.length > maxEvents) {
+                ctx.font = `${this.config.fontWeight} ${Math.round(originalSize * 0.85)}px ${this.config.fontFamily}`;
+                ctx.fillStyle = '#888888';
+                ctx.fillText(`+${col.events.length - maxEvents} more`, col.x, y);
+                ctx.fillStyle = this.config.textColor;
+            }
+        }
+    }
+
+    renderEvent(ctx, event, x, y, maxX, fontSize) {
+        const lineHeight = fontSize * 1.4;
+        const availableWidth = maxX - x;
+
+        // Time on its own line (bold)
+        ctx.font = `bold ${fontSize}px ${this.config.fontFamily}`;
+        ctx.fillStyle = this.config.textColor;
+        let timeText = event.time;
+        if (event.timeSuffix) {
+            timeText += ` ${event.timeSuffix}`;
+        }
+        ctx.fillText(timeText, x, y);
+        y += lineHeight * 0.9;
+
+        // Event name below (normal, truncated if needed)
+        ctx.font = `${this.config.fontWeight} ${fontSize}px ${this.config.fontFamily}`;
+        let name = event.name;
+        while (ctx.measureText(name).width > availableWidth && name.length > 3) {
+            name = name.slice(0, -4) + '...';
+        }
+        ctx.fillText(name, x, y);
+        y += lineHeight * 1.1;
+
+        return y;
+    }
+}
+
 class DashboardEngine {
     constructor(config = {}) {
         this.width = config.width || 600;
@@ -641,6 +953,9 @@ class DashboardEngine {
         this.registerComponent('weather', WeatherComponent);
         this.registerComponent('title', TitleComponent);
         this.registerComponent('pokemon-sprite', PokemonSpriteComponent);
+        this.registerComponent('calendar', CalendarComponent);
+        this.registerComponent('status-bar', StatusBarComponent);
+        this.registerComponent('quote', QuoteComponent);
     }
 
     /**
@@ -655,6 +970,7 @@ class DashboardEngine {
      */
     loadLayout(layoutConfig) {
         this.layout = layoutConfig.components || [];
+        this.layoutConfig = layoutConfig;
 
         // Update grid settings if provided
         if (layoutConfig.grid) {
@@ -725,6 +1041,21 @@ class DashboardEngine {
 
         await Promise.all(renderPromises);
 
+        // Draw separator lines if configured
+        if (this.layoutConfig && this.layoutConfig.separators) {
+            for (const sep of this.layoutConfig.separators) {
+                ctx.strokeStyle = sep.color || '#CCCCCC';
+                ctx.lineWidth = sep.width || 1;
+                ctx.beginPath();
+                const y = sep.row != null
+                    ? this.grid.gridToPixels(sep.row, 0).y - this.grid.gap / 2
+                    : sep.y;
+                ctx.moveTo(this.grid.margin, y);
+                ctx.lineTo(this.width - this.grid.margin, y);
+                ctx.stroke();
+            }
+        }
+
         return canvas;
     }
 
@@ -750,5 +1081,6 @@ module.exports = {
     DateComponent,
     StatsComponent,
     TitleComponent,
-    PokemonSpriteComponent
+    PokemonSpriteComponent,
+    CalendarComponent
 };

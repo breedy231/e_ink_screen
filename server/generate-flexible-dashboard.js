@@ -4,6 +4,7 @@ const { DashboardEngine } = require('./dashboard-engine');
 const DeviceStats = require('./device-stats');
 const WeatherService = require('./weather-service');
 const PokemonService = require('./pokemon-service');
+const CalendarService = require('./calendar-service');
 const fs = require('fs');
 const path = require('path');
 const { format } = require('date-fns');
@@ -35,6 +36,12 @@ class FlexibleDashboardGenerator {
 
         // Pokemon service configuration
         this.pokemonService = new PokemonService({
+            mockData: options.mockData || false
+        });
+
+        // Calendar service configuration
+        this.calendarService = new CalendarService({
+            timezone: options.timezone || 'America/Chicago',
             mockData: options.mockData || false
         });
 
@@ -90,7 +97,7 @@ class FlexibleDashboardGenerator {
 
         // Fetch device statistics if we have device-stats components
         let deviceStatsData = null;
-        const hasDeviceStatsComponent = layoutConfig.components.some(comp => comp.type === 'device-stats');
+        const hasDeviceStatsComponent = layoutConfig.components.some(comp => comp.type === 'device-stats' || comp.type === 'status-bar');
 
         if (hasDeviceStatsComponent) {
             console.log(`📊 Fetching device statistics...`);
@@ -133,6 +140,21 @@ class FlexibleDashboardGenerator {
             }
         }
 
+        // Fetch calendar data if we have calendar components
+        let calendarData = null;
+        const hasCalendarComponent = layoutConfig.components.some(comp => comp.type === 'calendar');
+
+        if (hasCalendarComponent) {
+            console.log(`📅 Fetching calendar data...`);
+            try {
+                calendarData = await this.calendarService.getFormattedCalendar();
+                console.log(`✅ Calendar: ${calendarData.today.length} today, ${calendarData.tomorrow.length} tomorrow (${calendarData.source})`);
+            } catch (error) {
+                console.warn(`⚠️  Failed to fetch calendar data: ${error.message}`);
+                calendarData = null;
+            }
+        }
+
         // Create dashboard engine
         const engine = new DashboardEngine({
             width: 600,
@@ -141,7 +163,7 @@ class FlexibleDashboardGenerator {
         });
 
         // Load layout and inject device stats, weather data, and pokemon data
-        const enrichedLayoutConfig = this.enrichLayoutWithData(layoutConfig, deviceStatsData, weatherData, pokemonData);
+        const enrichedLayoutConfig = this.enrichLayoutWithData(layoutConfig, deviceStatsData, weatherData, pokemonData, calendarData);
         engine.loadLayout(enrichedLayoutConfig);
 
         // Render dashboard
@@ -149,17 +171,26 @@ class FlexibleDashboardGenerator {
             showGrid: options.showGrid || false
         });
 
-        return { canvas, layoutConfig, deviceStatsData, weatherData, pokemonData };
+        return { canvas, layoutConfig, deviceStatsData, weatherData, pokemonData, calendarData };
     }
 
     /**
      * Enrich layout configuration with data (device stats, weather, and pokemon)
      */
-    enrichLayoutWithData(layoutConfig, deviceStatsData, weatherData, pokemonData) {
+    enrichLayoutWithData(layoutConfig, deviceStatsData, weatherData, pokemonData, calendarData) {
         const enrichedConfig = JSON.parse(JSON.stringify(layoutConfig)); // Deep clone
 
         enrichedConfig.components = enrichedConfig.components.map(component => {
             if (component.type === 'device-stats') {
+                return {
+                    ...component,
+                    config: {
+                        ...component.config,
+                        deviceStats: deviceStatsData
+                    }
+                };
+            }
+            if (component.type === 'status-bar') {
                 return {
                     ...component,
                     config: {
@@ -183,6 +214,15 @@ class FlexibleDashboardGenerator {
                     config: {
                         ...component.config,
                         pokemonData: pokemonData
+                    }
+                };
+            }
+            if (component.type === 'calendar') {
+                return {
+                    ...component,
+                    config: {
+                        ...component.config,
+                        calendarData: calendarData
                     }
                 };
             }
