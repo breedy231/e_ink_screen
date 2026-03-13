@@ -25,9 +25,12 @@
 - **Refresh**: Full refresh occasionally to prevent ghosting
 
 ### Power Management
-- Device sleeps between updates for battery efficiency
-- Use RTC wake: `/sys/devices/platform/mxc_rtc.0/wakeup_enable`
-- Disable framework during dashboard mode: `/etc/init.d/framework stop`
+- **RTC wake does NOT work** on this Kindle Touch — `echo mem > /sys/power/state` returns immediately without suspending, `rtcwake` gives "short write" error
+- **`preventScreenSaver` alone is NOT enough** — prevents screensaver UI but does not prevent CPU suspend when framework is running
+- **Working solution**: Stop framework (`/sbin/stop framework`) + set `preventScreenSaver 1` — this keeps CPU awake on battery
+- `dashboard-loop.sh` handles this: stops framework, sets preventScreenSaver, fetches every 5 min
+- Upstart job `/etc/upstart/dashboard.conf` auto-starts the loop on boot
+- Old cron-based approach was removed (cron stops executing when CPU suspends)
 
 ## Current Status: [KD-006] Flexible Dashboard Layout System ✅ COMPLETED
 
@@ -503,6 +506,53 @@ ssh root@192.168.50.104
 - `kindle/stop.sh` - Fixed lipc-set-prop and framework paths
 
 **Deployment Date**: November 1, 2025
+**Status**: ✅ Production - Fully Operational
+
+## Current Status: [KD-014] Sleep Fix + V2 Layout ✅ COMPLETED
+
+**Problem**: Kindle went to sleep when unplugged, preventing cron-based dashboard updates. `preventScreenSaver` was reset to 0 after reboot, and even when set, cron stops when CPU suspends.
+
+**Root Cause**: Framework was running (rebooted since last `start.sh` run in Nov 2025). With framework running, powerd suspends CPU after ~5 min regardless of `preventScreenSaver`.
+
+**Solution**: `dashboard-loop.sh` — persistent loop that:
+1. Stops framework (`/sbin/stop framework`)
+2. Sets `preventScreenSaver 1`
+3. Enables WiFi, fetches dashboard from Pi, displays on e-ink
+4. Sleeps 300s, repeats
+5. Re-asserts `preventScreenSaver` every cycle
+
+**Auto-start**: Upstart job at `/etc/upstart/dashboard.conf` launches loop 30s after boot.
+
+**V2 Layout Changes**:
+- Switched from `weather-pokemon` to `weather-pokemon-v2` (editorial design)
+- Calendar: 2 columns (Today + Tomorrow), removed "Coming Up"
+- Quote: daily rotating from `quotes.json`
+- Status bar: battery, WiFi, update time
+- All font sizes bumped for e-ink readability
+
+**CRITICAL Deployment Note**:
+- **Pi server runs from**: `/home/pi/dashboard-server/server/` (NOT `/home/pi/kindle-dashboard/server/`)
+- Always deploy files to the correct directory
+- Verify with: `ls -la /proc/$(pgrep -f local-dashboard-server | head -1)/cwd`
+
+**Files Added/Modified**:
+- `kindle/dashboard-loop.sh` - Persistent fetch loop (replaces cron)
+- `kindle/on-boot.sh` - Upstart-compatible boot script
+- `kindle/start.sh` - Updated to launch dashboard-loop
+- `kindle/stop.sh` - Updated to kill dashboard-loop
+- `server/dashboard-engine.js` - Added Calendar, Quote, StatusBar components
+- `server/calendar-service.js` - Google Calendar ICS integration
+- `server/quotes.json` - Daily quote database
+- `server/layouts/weather-pokemon-v2.json` - Production editorial layout
+- `server/local-dashboard-server.js` - Calendar/quote data enrichment, default layout changed
+
+**SSH Access**:
+- Kindle IP: 192.168.50.104
+- Direct SSH from Mac fails (key auth), use Pi as jump host with sshpass
+- Kindle root password stored in memory file only (never commit to repo)
+- `/etc` is read-only, remount: `mount -o remount,rw /` then `mount -o remount,ro /`
+
+**Deployment Date**: March 10, 2026
 **Status**: ✅ Production - Fully Operational
 
 ## Shell Compatibility Rules for Kindle Development
