@@ -346,7 +346,7 @@ main() {
     local loop_script="${SCRIPT_DIR}/dashboard-loop.sh"
     if [ -x "$loop_script" ]; then
         log_info "Launching dashboard loop..."
-        "$loop_script" &
+        setsid "$loop_script" >> "${DASHBOARD_DIR}/logs/dashboard-loop.log" 2>&1 &
         log_info "Dashboard loop started (PID $!)"
         log_info "Use ./stop.sh to exit dashboard mode"
         exit 0
