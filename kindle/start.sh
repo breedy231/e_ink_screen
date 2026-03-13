@@ -326,19 +326,40 @@ main() {
     # Prevent screen sleep to keep dashboard visible (after screen clear)
     prevent_screen_sleep
 
-    # Keep WiFi alive to ensure cron jobs can fetch updates
+    # Keep WiFi alive to ensure updates can fetch
     keep_wifi_alive
 
-    # Fetch initial dashboard
-    if initial_dashboard_fetch; then
-        log_info "Dashboard mode started successfully"
-        display_status
-        log_info "Use ./fetch-dashboard.sh to update dashboard manually"
+    # Kill any existing dashboard loop
+    local loop_pid_file="${DASHBOARD_DIR}/dashboard-loop.pid"
+    if [ -f "$loop_pid_file" ]; then
+        local old_pid
+        old_pid=$(cat "$loop_pid_file" 2>/dev/null)
+        if [ -n "$old_pid" ] && kill -0 "$old_pid" 2>/dev/null; then
+            log_info "Stopping existing dashboard loop (PID $old_pid)"
+            kill "$old_pid" 2>/dev/null || true
+            sleep 1
+        fi
+        rm -f "$loop_pid_file"
+    fi
+
+    # Launch dashboard loop in background (handles fetch, display, sleep/wake)
+    local loop_script="${SCRIPT_DIR}/dashboard-loop.sh"
+    if [ -x "$loop_script" ]; then
+        log_info "Launching dashboard loop..."
+        "$loop_script" &
+        log_info "Dashboard loop started (PID $!)"
         log_info "Use ./stop.sh to exit dashboard mode"
         exit 0
     else
-        log_error "Failed to start dashboard mode"
-        exit 1
+        log_error "dashboard-loop.sh not found or not executable"
+        # Fall back to one-shot fetch
+        if initial_dashboard_fetch; then
+            log_info "Dashboard displayed (one-shot, no loop)"
+            exit 0
+        else
+            log_error "Failed to start dashboard mode"
+            exit 1
+        fi
     fi
 }
 

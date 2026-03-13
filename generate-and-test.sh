@@ -67,9 +67,9 @@ generate_dashboard() {
     cd "$SERVER_DIR"
 
     if [[ "$1" == "--test" ]]; then
-        node generate-flexible-dashboard.js weather --test
+        node generate-flexible-dashboard.js weather-pokemon --test
     else
-        node generate-flexible-dashboard.js weather
+        node generate-flexible-dashboard.js weather-pokemon
     fi
 
     log_success "Dashboard generated"
@@ -350,7 +350,7 @@ main() {
         latest_image=$(find "$PROJECT_ROOT/test-images" -name "dashboard_*20*.png" | sort | tail -1)
     else
         generate_dashboard
-        latest_image="$PROJECT_ROOT/test-images/dashboard_weather.png"
+        latest_image="$PROJECT_ROOT/test-images/dashboard_weather-pokemon.png"
     fi
 
     # Optimize for e-ink

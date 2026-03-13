@@ -3,6 +3,8 @@
 const http = require('http');
 const { DashboardEngine } = require('./dashboard-engine');
 const WeatherService = require('./weather-service');
+const PokemonService = require('./pokemon-service');
+const CalendarService = require('./calendar-service');
 const fs = require('fs');
 const path = require('path');
 const { URL } = require('url');
@@ -20,12 +22,19 @@ class LocalDashboardServer {
         this.host = options.host || 'localhost';
         this.cacheEnabled = options.cache !== false;
         this.cacheTimeout = options.cacheTimeout || 60000; // 1 minute default
-        this.layout = options.layout || 'weather';
+        this.layout = options.layout || 'weather-pokemon';
 
         this.imageCache = new Map();
         this.weatherService = new WeatherService({
             latitude: 41.8781,
             longitude: -87.6298,
+            timezone: 'America/Chicago',
+            mockData: false
+        });
+        this.pokemonService = new PokemonService({
+            mockData: false
+        });
+        this.calendarService = new CalendarService({
             timezone: 'America/Chicago',
             mockData: false
         });
@@ -128,7 +137,7 @@ class LocalDashboardServer {
     /**
      * Enrich layout configuration with data
      */
-    enrichLayoutWithData(layoutConfig, weatherData, timeData) {
+    enrichLayoutWithData(layoutConfig, weatherData, pokemonData, timeData, calendarData) {
         const enrichedConfig = JSON.parse(JSON.stringify(layoutConfig));
 
         enrichedConfig.components = enrichedConfig.components.map(component => {
@@ -143,10 +152,31 @@ class LocalDashboardServer {
                 };
             }
 
-            // Inject time data into clock/date components if needed
-            if (component.type === 'clock' || component.type === 'date') {
-                // Clock and date components use current time automatically
-                return component;
+            // Inject Pokemon data into pokemon-sprite components
+            if (component.type === 'pokemon-sprite' && pokemonData) {
+                return {
+                    ...component,
+                    config: {
+                        ...component.config,
+                        pokemonData: pokemonData
+                    }
+                };
+            }
+
+            // Inject device stats into status-bar components
+            if (component.type === 'status-bar') {
+                return component; // No device stats in local server currently
+            }
+
+            // Inject calendar data into calendar components
+            if (component.type === 'calendar' && calendarData) {
+                return {
+                    ...component,
+                    config: {
+                        ...component.config,
+                        calendarData: calendarData
+                    }
+                };
             }
 
             return component;
@@ -179,6 +209,30 @@ class LocalDashboardServer {
             // Get weather data
             const weather = await this.weatherService.getFormattedWeather();
 
+            // Get Pokemon data if layout has pokemon-sprite component
+            let pokemonData = null;
+            const hasPokemonComponent = layoutConfig.components.some(comp => comp.type === 'pokemon-sprite');
+            if (hasPokemonComponent) {
+                try {
+                    pokemonData = await this.pokemonService.getFormattedPokemon();
+                    this.log(`Pokemon: #${pokemonData.id} ${pokemonData.name} (${pokemonData.source})`);
+                } catch (error) {
+                    this.log(`Failed to get Pokemon data: ${error.message}`, 'WARN');
+                }
+            }
+
+            // Get calendar data if layout has calendar component
+            let calendarData = null;
+            const hasCalendarComponent = layoutConfig.components.some(comp => comp.type === 'calendar');
+            if (hasCalendarComponent) {
+                try {
+                    calendarData = await this.calendarService.getFormattedCalendar();
+                    this.log(`Calendar: ${calendarData.today.length} today, ${calendarData.tomorrow.length} tomorrow (${calendarData.source})`);
+                } catch (error) {
+                    this.log(`Failed to get calendar data: ${error.message}`, 'WARN');
+                }
+            }
+
             // Get current time data
             const now = new Date();
             const timeData = {
@@ -205,11 +259,11 @@ class LocalDashboardServer {
             });
 
             // Enrich layout with data
-            const enrichedConfig = this.enrichLayoutWithData(layoutConfig, weather, timeData);
+            const enrichedConfig = this.enrichLayoutWithData(layoutConfig, weather, pokemonData, timeData, calendarData);
 
             // Load layout and render
             engine.loadLayout(enrichedConfig);
-            const canvas = engine.render({
+            const canvas = await engine.render({
                 showGrid: false
             });
 

@@ -1,0 +1,188 @@
+#!/bin/sh
+
+##############################################################################
+# Kindle Dashboard Loop
+#
+# Keeps the Kindle awake and updates the dashboard every N seconds.
+# Replaces cron-based updates which fail when the CPU suspends.
+#
+# How it works:
+#   1. Stop framework (prevents power state management)
+#   2. Set preventScreenSaver (keeps dashboard visible)
+#   3. Enable WiFi, fetch dashboard, display on e-ink
+#   4. Sleep for interval, then repeat
+#
+# Must be started after boot to survive reboots — see init script.
+#
+# Usage: ./dashboard-loop.sh [OPTIONS]
+#   --interval SECONDS   Update interval (default: 300 = 5 min)
+#   --once               Run once and exit (testing)
+##############################################################################
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+CONFIG_FILE="$SCRIPT_DIR/config/dashboard.conf"
+FETCH_SCRIPT="$SCRIPT_DIR/fetch-dashboard.sh"
+LOG_FILE="$SCRIPT_DIR/logs/dashboard-loop.log"
+PID_FILE="$SCRIPT_DIR/dashboard-loop.pid"
+
+# Defaults
+UPDATE_INTERVAL=300
+RUN_ONCE=false
+WIFI_WAIT_MAX=30
+
+# Parse arguments
+while [ $# -gt 0 ]; do
+    case $1 in
+        --interval)
+            UPDATE_INTERVAL="$2"
+            shift 2
+            ;;
+        --once)
+            RUN_ONCE=true
+            shift
+            ;;
+        *)
+            echo "Unknown option: $1"
+            exit 1
+            ;;
+    esac
+done
+
+log_msg() {
+    local ts
+    ts=$(date '+%Y-%m-%d %H:%M:%S')
+    echo "[$ts] $1"
+    if [ -d "$(dirname "$LOG_FILE")" ]; then
+        echo "[$ts] $1" >> "$LOG_FILE"
+    fi
+}
+
+rotate_log() {
+    if [ -f "$LOG_FILE" ]; then
+        local size
+        size=$(wc -c < "$LOG_FILE" 2>/dev/null || echo 0)
+        if [ "$size" -gt 102400 ]; then
+            tail -100 "$LOG_FILE" > "${LOG_FILE}.tmp"
+            mv "${LOG_FILE}.tmp" "$LOG_FILE"
+            log_msg "Log rotated"
+        fi
+    fi
+}
+
+write_pid() {
+    echo $$ > "$PID_FILE"
+    log_msg "PID $$ written to $PID_FILE"
+}
+
+cleanup() {
+    log_msg "Dashboard loop stopping (PID $$)"
+    rm -f "$PID_FILE"
+    exit 0
+}
+
+trap cleanup INT TERM
+
+# Stop Kindle framework to prevent power state management
+stop_framework() {
+    if [ -x "/sbin/stop" ]; then
+        /sbin/stop framework 2>/dev/null && log_msg "Framework stopped" || log_msg "Framework already stopped or not found"
+    fi
+}
+
+# Prevent screensaver and suspend
+prevent_sleep() {
+    if [ -x "/usr/bin/lipc-set-prop" ]; then
+        /usr/bin/lipc-set-prop com.lab126.powerd preventScreenSaver 1 2>/dev/null || true
+    fi
+}
+
+# Enable WiFi and wait for connection
+enable_wifi() {
+    if [ -x "/usr/bin/lipc-set-prop" ]; then
+        /usr/bin/lipc-set-prop com.lab126.cmd wirelessEnable 1 2>/dev/null || true
+    fi
+
+    local waited=0
+    while [ $waited -lt $WIFI_WAIT_MAX ]; do
+        if ifconfig wlan0 2>/dev/null | grep -q "inet addr"; then
+            log_msg "WiFi connected (${waited}s)"
+            return 0
+        fi
+        sleep 2
+        waited=$((waited + 2))
+    done
+
+    log_msg "WARNING: WiFi not connected after ${WIFI_WAIT_MAX}s"
+    return 1
+}
+
+# Fetch and display dashboard
+do_update() {
+    log_msg "--- Update ---"
+
+    # Re-assert sleep prevention every cycle
+    prevent_sleep
+
+    if ! enable_wifi; then
+        log_msg "WiFi failed, skipping update"
+        return 1
+    fi
+
+    if [ -x "$FETCH_SCRIPT" ]; then
+        "$FETCH_SCRIPT" --config "$CONFIG_FILE" >> "$LOG_FILE" 2>&1
+        local rc=$?
+        if [ $rc -eq 0 ]; then
+            log_msg "Update successful"
+        else
+            log_msg "Update failed (rc=$rc)"
+        fi
+        return $rc
+    else
+        log_msg "ERROR: Fetch script not found: $FETCH_SCRIPT"
+        return 1
+    fi
+}
+
+##############################################################################
+# Main
+##############################################################################
+
+main() {
+    mkdir -p "$SCRIPT_DIR/logs"
+    rotate_log
+
+    log_msg "========================================="
+    log_msg "Dashboard loop starting (PID $$)"
+    log_msg "  Interval: ${UPDATE_INTERVAL}s"
+    log_msg "========================================="
+
+    write_pid
+
+    # Stop framework and prevent sleep
+    stop_framework
+    sleep 2
+    prevent_sleep
+
+    # Clear screen after framework stop
+    if [ -x "/usr/sbin/eips" ]; then
+        /usr/sbin/eips -c 2>/dev/null || true
+        sleep 1
+        /usr/sbin/eips -f -c 2>/dev/null || true
+    fi
+
+    while true; do
+        do_update
+
+        if [ "$RUN_ONCE" = "true" ]; then
+            log_msg "Run-once mode, exiting"
+            break
+        fi
+
+        sleep "$UPDATE_INTERVAL"
+        rotate_log
+    done
+
+    cleanup
+}
+
+main

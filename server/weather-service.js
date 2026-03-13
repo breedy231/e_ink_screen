@@ -162,7 +162,7 @@ class WeatherService {
                 `daily=weather_code,temperature_2m_max,temperature_2m_min&` +
                 `timezone=${encodeURIComponent(this.timezone)}&` +
                 `temperature_unit=fahrenheit&` +
-                `forecast_days=3`;
+                `forecast_days=5`;
 
             https.get(url, (res) => {
                 let data = '';
@@ -265,13 +265,17 @@ class WeatherService {
             lastUpdate: new Date(weatherData._timestamp || Date.now()).toLocaleTimeString()
         };
 
-        // Format daily forecast
+        // Format daily forecast (skip today and past dates, show future only)
         if (weatherData.daily && weatherData.daily.time) {
-            for (let i = 0; i < Math.min(3, weatherData.daily.time.length); i++) {
+            const today = new Date().toISOString().split('T')[0];
+            for (let i = 0; i < weatherData.daily.time.length; i++) {
+                if (weatherData.daily.time[i] <= today) continue;
+                if (formatted.forecast.length >= 3) break;
+
                 const forecastWeatherInfo = this.getWeatherInfo(weatherData.daily.weather_code[i]);
 
                 formatted.forecast.push({
-                    date: new Date(weatherData.daily.time[i]).toLocaleDateString('en-US', {
+                    date: new Date(weatherData.daily.time[i] + 'T12:00:00').toLocaleDateString('en-US', {
                         weekday: 'short',
                         month: 'short',
                         day: 'numeric'

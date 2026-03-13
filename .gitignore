@@ -42,3 +42,4 @@ kindle/config/*secret*
 # Test outputs in root
 /dashboard*.png
 /test_dashboard*.png
+backup/

@@ -19,7 +19,8 @@
   "license": "MIT",
   "dependencies": {
     "canvas": "^2.11.2",
-    "date-fns": "^2.30.0"
+    "date-fns": "^2.30.0",
+    "node-ical": "^0.25.5"
   },
   "devDependencies": {
     "netlify-cli": "^17.0.0"

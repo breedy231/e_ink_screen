@@ -25,9 +25,12 @@
 - **Refresh**: Full refresh occasionally to prevent ghosting
 
 ### Power Management
-- Device sleeps between updates for battery efficiency
-- Use RTC wake: `/sys/devices/platform/mxc_rtc.0/wakeup_enable`
-- Disable framework during dashboard mode: `/etc/init.d/framework stop`
+- **RTC wake does NOT work** on this Kindle Touch — `echo mem > /sys/power/state` returns immediately without suspending, `rtcwake` gives "short write" error
+- **`preventScreenSaver` alone is NOT enough** — prevents screensaver UI but does not prevent CPU suspend when framework is running
+- **Working solution**: Stop framework (`/sbin/stop framework`) + set `preventScreenSaver 1` — this keeps CPU awake on battery
+- `dashboard-loop.sh` handles this: stops framework, sets preventScreenSaver, fetches every 5 min
+- Upstart job `/etc/upstart/dashboard.conf` auto-starts the loop on boot
+- Old cron-based approach was removed (cron stops executing when CPU suspends)
 
 ## Current Status: [KD-006] Flexible Dashboard Layout System ✅ COMPLETED
 
@@ -505,100 +508,56 @@ ssh root@192.168.50.104
 **Deployment Date**: November 1, 2025
 **Status**: ✅ Production - Fully Operational
 
-## Current Status: [KD-014] E-ink Update Schedule Fix & Testing Suite ✅ COMPLETED
+## Current Status: [KD-014] Sleep Fix + V2 Layout ✅ COMPLETED
 
-**Acceptance Criteria**: ✅ All Complete
-- [x] Identify and fix 24/7 update schedule issue
-- [x] Resolve WiFi disconnection when unplugged
-- [x] Implement automated testing suite
-- [x] Validate all changes before deployment
-- [x] Document testing procedures
+**Problem**: Kindle went to sleep when unplugged, preventing cron-based dashboard updates. `preventScreenSaver` was reset to 0 after reboot, and even when set, cron stops when CPU suspends.
 
-**Problem Identified**:
-1. **24/7 Updates Draining Battery**: Dashboard updating every 5 minutes around the clock (288 updates/day)
-2. **Updates Stop When Unplugged**: WiFi enters power-saving mode, disconnecting network and blocking cron jobs
+**Root Cause**: Framework was running (rebooted since last `start.sh` run in Nov 2025). With framework running, powerd suspends CPU after ~5 min regardless of `preventScreenSaver`.
 
-**Solutions Delivered**:
+**Solution**: `dashboard-loop.sh` — persistent loop that:
+1. Stops framework (`/sbin/stop framework`)
+2. Sets `preventScreenSaver 1`
+3. Enables WiFi, fetches dashboard from Pi, displays on e-ink
+4. Sleeps 300s, repeats
+5. Re-asserts `preventScreenSaver` every cycle
 
-### 1. Limited Update Schedule (7am-10pm Central Time)
-- **Cron Entry 1**: `*/5 12-23 * * *` (12:00-23:59 UTC)
-- **Cron Entry 2**: `*/5 0-4 * * *` (00:00-04:59 UTC)
-- **Coverage**: Properly handles both CDT (UTC-5) and CST (UTC-6)
-- **Daily Updates**: 204 (down from 288 = **29% reduction**)
-- **Battery Impact**: Significant reduction in processing/network activity
+**Why not cron?** RTC wake does NOT work on this Kindle Touch (`rtcwake` gives "short write" error, `echo mem > /sys/power/state` returns immediately). Cron stops executing when CPU suspends. The persistent loop with framework stopped is the only reliable approach.
 
-### 2. WiFi Keep-Alive Implementation
-- **Added**: `keep_wifi_alive()` function in `start.sh`
-- **Uses**: `lipc-set-prop com.lab126.powerd keepAliveWirelessRadio 1`
-- **Backup**: Driver-level power management disable via `iwconfig`
-- **Restoration**: `restore_wifi_power_management()` in `stop.sh` returns WiFi to normal
-- **Result**: Updates work reliably even when unplugged from power
+**Auto-start**: Upstart job at `/etc/upstart/dashboard.conf` launches loop 30s after boot.
 
-### 3. Automated Testing Suite
-**Created comprehensive test suite to prevent bugs:**
+**WiFi Keep-Alive**: `keep_wifi_alive()` in start.sh uses `lipc-set-prop com.lab126.powerd keepAliveWirelessRadio 1` plus driver-level `iwconfig power off`. Reversed by `restore_wifi_power_management()` in stop.sh.
 
-#### Test Scripts:
-1. **`pre-deployment-validation.sh`** - Master test suite (10 test categories)
-   - File existence and syntax validation
-   - Configuration value verification
-   - Function presence and execution flow
-   - WiFi command correctness and symmetry
-   - POSIX shell compatibility checks
-   - Documentation completeness
+**V2 Layout Changes**:
+- Switched from `weather-pokemon` to `weather-pokemon-v2` (editorial design)
+- Calendar: 2 columns (Today + Tomorrow), removed "Coming Up"
+- Quote: daily rotating from `quotes.json`
+- Status bar: battery, WiFi, update time
+- All font sizes bumped for e-ink readability
 
-2. **`test-schedule-logic.sh`** - Cron schedule validator
-   - Validates 7am-10pm Central Time coverage
-   - Tests both CDT and CST timezone handling
-   - Calculates daily update frequency
-   - Caught timezone bug (original 0-3 UTC missed 10pm CST)
+**CRITICAL Deployment Note**:
+- **Pi server runs from**: `/home/pi/dashboard-server/server/` (NOT `/home/pi/kindle-dashboard/server/`)
+- Always deploy files to the correct directory
+- Verify with: `ls -la /proc/$(pgrep -f local-dashboard-server | head -1)/cwd`
 
-3. **`test-wifi-commands.sh`** - WiFi logic validator
-   - Validates keep-alive enable/disable symmetry
-   - Checks function calls in execution flow
-   - Verifies POSIX compatibility
+**Files Added/Modified**:
+- `kindle/dashboard-loop.sh` - Persistent fetch loop (replaces cron)
+- `kindle/on-boot.sh` - Upstart-compatible boot script
+- `kindle/start.sh` - Updated to launch dashboard-loop, added WiFi keep-alive
+- `kindle/stop.sh` - Updated to kill dashboard-loop, added WiFi power management restore
+- `server/dashboard-engine.js` - Added Calendar, Quote, StatusBar components
+- `server/calendar-service.js` - Google Calendar ICS integration
+- `server/quotes.json` - Daily quote database
+- `server/layouts/weather-pokemon-v2.json` - Production editorial layout
+- `server/local-dashboard-server.js` - Calendar/quote data enrichment, default layout changed
 
-#### Testing Results:
-- ✅ **Bug Caught**: Tests revealed original schedule used `0-3 UTC` which missed 10pm during CST (4am UTC)
-- ✅ **Bug Fixed**: Updated to `0-4 UTC` ensuring full coverage year-round
-- ✅ **All Tests Pass**: Complete validation suite passes with zero failures
-- ✅ **POSIX Verified**: All Kindle scripts confirmed compatible with ash/dash shell
+**SSH Access**:
+- Kindle IP: 192.168.50.104
+- Direct SSH from Mac fails (key auth), use Pi as jump host with sshpass
+- Kindle root password stored in memory file only (never commit to repo)
+- `/etc` is read-only, remount: `mount -o remount,rw /` then `mount -o remount,ro /`
 
-**Files Added**:
-- `fix-eink-schedule.sh` - Automated deployment script with backup/verification
-- `test-schedule-logic.sh` - Schedule validation tests
-- `test-wifi-commands.sh` - WiFi logic tests
-- `pre-deployment-validation.sh` - Comprehensive pre-deployment test suite
-- `EINK_SCHEDULE_FIX_README.md` - Complete documentation with testing procedures
-
-**Files Modified**:
-- `kindle/start.sh` - Added `keep_wifi_alive()` function
-- `kindle/stop.sh` - Added `restore_wifi_power_management()` function
-- `kindle/setup-local-cron.sh` - Fixed schedule to `0-4 UTC`, updated to Pi server IP
-- `CLAUDE.md` - Added comprehensive testing documentation
-
-**Testing Best Practices Established**:
-- **Pre-Deployment**: Always run `./pre-deployment-validation.sh` before deploying
-- **POSIX Compliance**: All Kindle scripts validated with `sh -n script.sh`
-- **Schedule Changes**: Validate with `./test-schedule-logic.sh`
-- **WiFi Changes**: Validate with `./test-wifi-commands.sh`
-- **Documentation**: Update CLAUDE.md with all changes
-
-**Production Impact**:
-- **Battery Life**: 29% fewer updates = significant battery improvement
-- **Reliability**: WiFi stays connected when unplugged
-- **Timezone Handling**: Works correctly during DST transitions
-- **Quality Assurance**: Testing suite prevents regression bugs
-
-**Deployment Date**: November 6, 2025
-**Status**: ✅ Tested & Ready for Deployment
-
-**Deployment Command**: `./fix-eink-schedule.sh`
-
-**Note**: If connectivity checks fail but SSH works manually, use:
-```bash
-./fix-eink-schedule.sh --skip-checks
-```
-This bypasses `ping`-based connectivity checks (useful when `ping` is unavailable or blocked).
+**Deployment Date**: March 10, 2026
+**Status**: ✅ Production - Fully Operational
 
 ## Shell Compatibility Rules for Kindle Development
 

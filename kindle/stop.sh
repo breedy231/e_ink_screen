@@ -274,6 +274,26 @@ main() {
 
     log_info "=== Stopping Kindle Dashboard Mode ==="
 
+    # Stop the dashboard loop if running
+    local loop_pid_file="/mnt/us/dashboard/dashboard-loop.pid"
+    if [ -f "$loop_pid_file" ]; then
+        local loop_pid
+        loop_pid=$(cat "$loop_pid_file" 2>/dev/null)
+        if [ -n "$loop_pid" ] && kill -0 "$loop_pid" 2>/dev/null; then
+            log_info "Stopping dashboard loop (PID $loop_pid)"
+            kill "$loop_pid" 2>/dev/null || true
+            sleep 1
+            # Force kill if still running
+            if kill -0 "$loop_pid" 2>/dev/null; then
+                kill -9 "$loop_pid" 2>/dev/null || true
+            fi
+        fi
+        rm -f "$loop_pid_file"
+        log_info "Dashboard loop stopped"
+    else
+        log_info "No dashboard loop PID file found"
+    fi
+
     # Re-enable screen sleep
     restore_screen_sleep
 
