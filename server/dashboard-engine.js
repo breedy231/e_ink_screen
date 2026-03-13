@@ -85,18 +85,42 @@ class ComponentBase {
      */
     drawContainer(ctx, bounds) {
         const { x, y, width, height } = bounds;
+        const radius = this.config.borderRadius || 0;
 
-        // Background
-        if (this.config.backgroundColor !== 'transparent') {
-            ctx.fillStyle = this.config.backgroundColor;
-            ctx.fillRect(x, y, width, height);
-        }
+        if (radius > 0) {
+            // Rounded rectangle path
+            ctx.beginPath();
+            ctx.moveTo(x + radius, y);
+            ctx.lineTo(x + width - radius, y);
+            ctx.arcTo(x + width, y, x + width, y + radius, radius);
+            ctx.lineTo(x + width, y + height - radius);
+            ctx.arcTo(x + width, y + height, x + width - radius, y + height, radius);
+            ctx.lineTo(x + radius, y + height);
+            ctx.arcTo(x, y + height, x, y + height - radius, radius);
+            ctx.lineTo(x, y + radius);
+            ctx.arcTo(x, y, x + radius, y, radius);
+            ctx.closePath();
 
-        // Border
-        if (this.config.borderColor && this.config.borderWidth > 0) {
-            ctx.strokeStyle = this.config.borderColor;
-            ctx.lineWidth = this.config.borderWidth;
-            ctx.strokeRect(x, y, width, height);
+            if (this.config.backgroundColor !== 'transparent') {
+                ctx.fillStyle = this.config.backgroundColor;
+                ctx.fill();
+            }
+            if (this.config.borderColor && this.config.borderWidth > 0) {
+                ctx.strokeStyle = this.config.borderColor;
+                ctx.lineWidth = this.config.borderWidth;
+                ctx.stroke();
+            }
+        } else {
+            // Sharp rectangle (original)
+            if (this.config.backgroundColor !== 'transparent') {
+                ctx.fillStyle = this.config.backgroundColor;
+                ctx.fillRect(x, y, width, height);
+            }
+            if (this.config.borderColor && this.config.borderWidth > 0) {
+                ctx.strokeStyle = this.config.borderColor;
+                ctx.lineWidth = this.config.borderWidth;
+                ctx.strokeRect(x, y, width, height);
+            }
         }
     }
 
@@ -180,6 +204,87 @@ class ClockComponent extends ComponentBase {
             const secondsY = startY + timeHeight + 10;
             ctx.fillText(secondsStr, textX, secondsY);
         }
+    }
+}
+
+class AnalogClockComponent extends ComponentBase {
+    constructor(config = {}) {
+        super('analog-clock', {
+            showNumbers: config.showNumbers !== false,
+            handColor: config.handColor || '#000000',
+            tickColor: config.tickColor || '#000000',
+            faceColor: config.faceColor || '#FFFFFF',
+            borderWidth: config.borderWidth || 3,
+            ...config
+        });
+    }
+
+    render(ctx, bounds) {
+        this.drawContainer(ctx, bounds);
+        const contentBounds = this.getContentBounds(bounds);
+
+        // Clock is square — use the smaller dimension
+        const diameter = Math.min(contentBounds.width, contentBounds.height);
+        const radius = diameter / 2;
+        const centerX = contentBounds.x + contentBounds.width / 2;
+        const centerY = contentBounds.y + contentBounds.height / 2;
+
+        // Clock face — clean circle
+        ctx.fillStyle = this.config.faceColor;
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, radius - 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = this.config.handColor;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, radius - 2, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Simple hour markers — small dots, not ticks
+        for (let i = 0; i < 12; i++) {
+            const angle = (i * Math.PI * 2) / 12 - Math.PI / 2;
+            const dotR = radius - 14;
+            const dotSize = i % 3 === 0 ? 4 : 2;
+            ctx.fillStyle = this.config.tickColor;
+            ctx.beginPath();
+            ctx.arc(
+                centerX + Math.cos(angle) * dotR,
+                centerY + Math.sin(angle) * dotR,
+                dotSize, 0, Math.PI * 2
+            );
+            ctx.fill();
+        }
+
+        // Current time
+        const now = new Date();
+        const hours = now.getHours() % 12;
+        const minutes = now.getMinutes();
+
+        // Hour hand — tapered, elegant
+        const hourAngle = ((hours + minutes / 60) * Math.PI * 2) / 12 - Math.PI / 2;
+        const hourLength = radius * 0.5;
+        ctx.strokeStyle = this.config.handColor;
+        ctx.lineWidth = 5;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(centerX, centerY);
+        ctx.lineTo(centerX + Math.cos(hourAngle) * hourLength, centerY + Math.sin(hourAngle) * hourLength);
+        ctx.stroke();
+
+        // Minute hand — thinner, longer
+        const minuteAngle = (minutes * Math.PI * 2) / 60 - Math.PI / 2;
+        const minuteLength = radius * 0.72;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(centerX, centerY);
+        ctx.lineTo(centerX + Math.cos(minuteAngle) * minuteLength, centerY + Math.sin(minuteAngle) * minuteLength);
+        ctx.stroke();
+
+        // Center dot
+        ctx.fillStyle = this.config.handColor;
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, 4, 0, Math.PI * 2);
+        ctx.fill();
     }
 }
 
@@ -525,6 +630,61 @@ class StatusBarComponent extends ComponentBase {
         // Center the status bar
         ctx.textAlign = 'center';
         ctx.fillText(line, contentBounds.x + contentBounds.width / 2, contentBounds.y);
+    }
+}
+
+class HeroWeatherComponent extends ComponentBase {
+    constructor(config = {}) {
+        super('hero-weather', {
+            fontSize: 120,
+            fontWeight: 'bold',
+            textAlign: 'left',
+            conditionSize: config.conditionSize || 0.2,
+            weatherData: config.weatherData || null,
+            ...config
+        });
+    }
+
+    getWeatherSymbol(iconType) {
+        const symbols = {
+            'clear': '☀', 'mostly-clear': '☀', 'partly-cloudy': '☁',
+            'cloudy': '☁', 'fog': '☁', 'drizzle': '☂', 'rain': '☂',
+            'heavy-rain': '☂', 'snow': '❄', 'heavy-snow': '❄',
+            'freezing-rain': '❄', 'freezing-drizzle': '❄',
+            'showers': '☂', 'heavy-showers': '☂', 'snow-showers': '❄',
+            'thunderstorm': '⚡', 'thunderstorm-hail': '⚡', 'unknown': '?'
+        };
+        return symbols[iconType] || '?';
+    }
+
+    render(ctx, bounds) {
+        this.drawContainer(ctx, bounds);
+        const contentBounds = this.getContentBounds(bounds);
+
+        if (!this.config.weatherData || !this.config.weatherData.current) {
+            this.setTextStyle(ctx);
+            ctx.fillText('--°', contentBounds.x, contentBounds.y);
+            return;
+        }
+
+        const current = this.config.weatherData.current;
+
+        // Hero temperature
+        ctx.fillStyle = this.config.textColor;
+        ctx.font = `${this.config.fontWeight} ${this.config.fontSize}px ${this.config.fontFamily}`;
+        ctx.textAlign = this.config.textAlign;
+        ctx.textBaseline = 'top';
+
+        const tempText = current.temperature || '--°';
+        ctx.fillText(tempText, contentBounds.x, contentBounds.y);
+
+        // Condition + symbol below
+        const condSize = Math.round(this.config.fontSize * this.config.conditionSize);
+        ctx.font = `normal ${condSize}px ${this.config.fontFamily}`;
+        ctx.fillStyle = this.config.textColor;
+        const symbol = this.getWeatherSymbol(current.icon);
+        const condY = contentBounds.y + this.config.fontSize + 4;
+        ctx.fillText(`${symbol} ${current.condition}`, contentBounds.x, condY);
     }
 }
 
@@ -947,10 +1107,12 @@ class DashboardEngine {
 
         // Register built-in components
         this.registerComponent('clock', ClockComponent);
+        this.registerComponent('analog-clock', AnalogClockComponent);
         this.registerComponent('date', DateComponent);
         this.registerComponent('stats', StatsComponent);
         this.registerComponent('device-stats', DeviceStatsComponent);
         this.registerComponent('weather', WeatherComponent);
+        this.registerComponent('hero-weather', HeroWeatherComponent);
         this.registerComponent('title', TitleComponent);
         this.registerComponent('pokemon-sprite', PokemonSpriteComponent);
         this.registerComponent('calendar', CalendarComponent);
@@ -1078,6 +1240,7 @@ module.exports = {
     GridSystem,
     ComponentBase,
     ClockComponent,
+    AnalogClockComponent,
     DateComponent,
     StatsComponent,
     TitleComponent,

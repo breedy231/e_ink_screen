@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 const http = require('http');
+const https = require('https');
 const { DashboardEngine } = require('./dashboard-engine');
 const WeatherService = require('./weather-service');
 const PokemonService = require('./pokemon-service');
@@ -25,6 +26,8 @@ class LocalDashboardServer {
         this.layout = options.layout || 'weather-pokemon';
 
         this.imageCache = new Map();
+        this.lastBatteryNotification = 0;
+        this.ntfyTopic = process.env.NTFY_TOPIC || 'kindle-dashboard-alerts';
         this.weatherService = new WeatherService({
             latitude: 41.8781,
             longitude: -87.6298,
@@ -43,6 +46,41 @@ class LocalDashboardServer {
     log(message, level = 'INFO') {
         const timestamp = new Date().toISOString();
         console.log(`[${timestamp}] [${level}] ${message}`);
+    }
+
+    checkBatteryAndNotify(batteryLevel) {
+        if (batteryLevel === null || batteryLevel === undefined) return;
+
+        const level = parseInt(batteryLevel);
+        if (isNaN(level) || level > 10) return;
+
+        // Rate limit: once per hour
+        const now = Date.now();
+        if (now - this.lastBatteryNotification < 3600000) return;
+
+        this.lastBatteryNotification = now;
+        this.log(`Battery low: ${level}% — sending notification to ntfy.sh/${this.ntfyTopic}`, 'WARN');
+
+        const postData = `Kindle battery at ${level}%. Time to charge!`;
+        const req = https.request({
+            hostname: 'ntfy.sh',
+            path: `/${this.ntfyTopic}`,
+            method: 'POST',
+            headers: {
+                'Title': 'Kindle Battery Low',
+                'Priority': 'high',
+                'Tags': 'battery,warning'
+            }
+        }, (res) => {
+            this.log(`ntfy.sh response: ${res.statusCode}`);
+        });
+
+        req.on('error', (err) => {
+            this.log(`ntfy.sh error: ${err.message}`, 'ERROR');
+        });
+
+        req.write(postData);
+        req.end();
     }
 
     getCacheKey(url) {
@@ -142,7 +180,7 @@ class LocalDashboardServer {
 
         enrichedConfig.components = enrichedConfig.components.map(component => {
             // Inject weather data into weather components
-            if (component.type === 'weather' && weatherData) {
+            if ((component.type === 'weather' || component.type === 'hero-weather') && weatherData) {
                 return {
                     ...component,
                     config: {
@@ -251,10 +289,12 @@ class LocalDashboardServer {
                 timestamp: now.toISOString()
             };
 
-            // Create dashboard engine
+            // Create dashboard engine (use layout dimensions if specified)
+            const layoutWidth = (layoutConfig.dimensions && layoutConfig.dimensions.width) || 600;
+            const layoutHeight = (layoutConfig.dimensions && layoutConfig.dimensions.height) || 800;
             const engine = new DashboardEngine({
-                width: 600,
-                height: 800,
+                width: layoutWidth,
+                height: layoutHeight,
                 backgroundColor: '#FFFFFF'
             });
 
@@ -292,6 +332,12 @@ class LocalDashboardServer {
         try {
             const cacheKey = this.getCacheKey(req.url);
             const cached = this.imageCache.get(cacheKey);
+
+            // Check battery level from Kindle
+            const batteryLevel = parsedUrl.searchParams.get('battery');
+            if (batteryLevel) {
+                this.checkBatteryAndNotify(batteryLevel);
+            }
 
             let imageBuffer;
 

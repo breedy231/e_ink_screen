@@ -1,0 +1,112 @@
+{
+  "name": "Design Option B — Structured Calm",
+  "description": "Single thin separator, left-aligned throughout, weather condensed, calendar prominent.",
+  "grid": {
+    "rows": 18,
+    "cols": 8,
+    "margin": 28,
+    "gap": 3
+  },
+  "separators": [
+    { "row": 9, "color": "#DDDDDD", "width": 1 }
+  ],
+  "components": [
+    {
+      "type": "analog-clock",
+      "position": { "row": 0, "col": 0, "rowSpan": 3, "colSpan": 3 },
+      "config": {
+        "padding": 2
+      }
+    },
+    {
+      "type": "date",
+      "position": { "row": 0, "col": 3, "rowSpan": 1, "colSpan": 3 },
+      "config": {
+        "fontSize": 17,
+        "fontWeight": "normal",
+        "textAlign": "left",
+        "showDayOfYear": false,
+        "dayFormat": "EEEE",
+        "dateFormat": "MMMM do, yyyy",
+        "padding": 4
+      }
+    },
+    {
+      "type": "weather",
+      "position": { "row": 1, "col": 3, "rowSpan": 2, "colSpan": 3 },
+      "config": {
+        "title": "",
+        "fontSize": 15,
+        "titleSize": 0,
+        "inline": false,
+        "showCurrent": true,
+        "showForecast": false,
+        "showSource": false,
+        "showWind": true,
+        "showHumidity": false,
+        "heroSize": 1.4,
+        "compactDetails": true,
+        "textColor": "#333333",
+        "padding": 4
+      }
+    },
+    {
+      "type": "pokemon-sprite",
+      "position": { "row": 0, "col": 6, "rowSpan": 3, "colSpan": 2 },
+      "config": {
+        "showNumber": false,
+        "showName": false,
+        "spriteSize": 0.85,
+        "padding": 2
+      }
+    },
+    {
+      "type": "weather",
+      "position": { "row": 4, "col": 0, "rowSpan": 3, "colSpan": 8 },
+      "config": {
+        "title": "",
+        "fontSize": 19,
+        "titleSize": 0,
+        "forecastSize": 1.0,
+        "forecastColumns": true,
+        "showCurrent": false,
+        "showForecast": true,
+        "showForecastLabel": false,
+        "showSource": false,
+        "forecastDays": 3,
+        "padding": 0
+      }
+    },
+    {
+      "type": "calendar",
+      "position": { "row": 8, "col": 0, "rowSpan": 6, "colSpan": 8 },
+      "config": {
+        "fontSize": 15,
+        "maxEventsPerDay": 4,
+        "showUpcoming": false,
+        "sectionHeaderSize": 1.15,
+        "columnGap": 20,
+        "padding": 0
+      }
+    },
+    {
+      "type": "quote",
+      "position": { "row": 15, "col": 0, "rowSpan": 2, "colSpan": 8 },
+      "config": {
+        "fontSize": 14,
+        "fontWeight": "normal",
+        "textColor": "#555555",
+        "padding": 0
+      }
+    },
+    {
+      "type": "status-bar",
+      "position": { "row": 17, "col": 0, "rowSpan": 1, "colSpan": 8 },
+      "config": {
+        "fontSize": 11,
+        "textColor": "#AAAAAA",
+        "padding": 0
+      }
+    }
+  ]
+}

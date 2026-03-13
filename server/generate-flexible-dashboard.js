@@ -112,7 +112,7 @@ class FlexibleDashboardGenerator {
 
         // Fetch weather data if we have weather components
         let weatherData = null;
-        const hasWeatherComponent = layoutConfig.components.some(comp => comp.type === 'weather');
+        const hasWeatherComponent = layoutConfig.components.some(comp => comp.type === 'weather' || comp.type === 'hero-weather');
 
         if (hasWeatherComponent) {
             console.log(`🌤️  Fetching weather data...`);
@@ -155,10 +155,12 @@ class FlexibleDashboardGenerator {
             }
         }
 
-        // Create dashboard engine
+        // Create dashboard engine (use layout dimensions if specified, else portrait default)
+        const layoutWidth = (layoutConfig.dimensions && layoutConfig.dimensions.width) || 600;
+        const layoutHeight = (layoutConfig.dimensions && layoutConfig.dimensions.height) || 800;
         const engine = new DashboardEngine({
-            width: 600,
-            height: 800,
+            width: layoutWidth,
+            height: layoutHeight,
             backgroundColor: '#FFFFFF'
         });
 
@@ -199,7 +201,7 @@ class FlexibleDashboardGenerator {
                     }
                 };
             }
-            if (component.type === 'weather') {
+            if (component.type === 'weather' || component.type === 'hero-weather') {
                 return {
                     ...component,
                     config: {
@@ -256,8 +258,9 @@ class FlexibleDashboardGenerator {
 
         fs.writeFileSync(outputPath, buffer);
 
+        const orientation = canvas.width > canvas.height ? 'Landscape' : 'Portrait';
         console.log(`✅ Dashboard saved successfully!`);
-        console.log(`📏 Size: 600x800px (Portrait)`);
+        console.log(`📏 Size: ${canvas.width}x${canvas.height}px (${orientation})`);
         console.log(`📦 File size: ${(buffer.length / 1024).toFixed(1)}KB`);
 
         return outputPath;
