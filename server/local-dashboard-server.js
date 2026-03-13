@@ -217,6 +217,19 @@ class LocalDashboardServer {
                 };
             }
 
+            // Full-canvas components that need all data
+            if (component.type === 'watch-face' || component.type === 'brutalist' || component.type === 'swiss-poster') {
+                return {
+                    ...component,
+                    config: {
+                        ...component.config,
+                        weatherData: weatherData,
+                        calendarData: calendarData,
+                        pokemonData: pokemonData
+                    }
+                };
+            }
+
             return component;
         });
 
@@ -249,7 +262,8 @@ class LocalDashboardServer {
 
             // Get Pokemon data if layout has pokemon-sprite component
             let pokemonData = null;
-            const hasPokemonComponent = layoutConfig.components.some(comp => comp.type === 'pokemon-sprite');
+            const fullCanvasTypes = ['watch-face', 'brutalist', 'swiss-poster'];
+            const hasPokemonComponent = layoutConfig.components.some(comp => comp.type === 'pokemon-sprite' || fullCanvasTypes.includes(comp.type));
             if (hasPokemonComponent) {
                 try {
                     pokemonData = await this.pokemonService.getFormattedPokemon();
@@ -261,7 +275,7 @@ class LocalDashboardServer {
 
             // Get calendar data if layout has calendar component
             let calendarData = null;
-            const hasCalendarComponent = layoutConfig.components.some(comp => comp.type === 'calendar');
+            const hasCalendarComponent = layoutConfig.components.some(comp => comp.type === 'calendar' || fullCanvasTypes.includes(comp.type));
             if (hasCalendarComponent) {
                 try {
                     calendarData = await this.calendarService.getFormattedCalendar();
