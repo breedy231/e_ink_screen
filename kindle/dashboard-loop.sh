@@ -205,11 +205,6 @@ main() {
         remainder=$((now % UPDATE_INTERVAL))
         sleep_time=$((UPDATE_INTERVAL - remainder + ALIGN_BUFFER))
 
-        # If buffer puts us past the NEXT boundary, we're already close — just use one interval
-        if [ "$sleep_time" -gt "$((UPDATE_INTERVAL + ALIGN_BUFFER))" ]; then
-            sleep_time=$((sleep_time - UPDATE_INTERVAL))
-        fi
-
         next_epoch=$((now + sleep_time))
         # Format next wake time for logging (busybox date -d @epoch may not work, use arithmetic)
         next_min=$(( (next_epoch / 60) % 60 ))

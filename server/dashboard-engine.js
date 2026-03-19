@@ -1258,7 +1258,7 @@ class WatchFaceComponent extends ComponentBase {
         }
 
         // Hands
-        const now = new Date();
+        const now = roundTimeToNearest(new Date(), 15);
         const hours = now.getHours() % 12;
         const minutes = now.getMinutes();
 
@@ -1411,7 +1411,7 @@ class BrutalistComponent extends ComponentBase {
         }
 
         // Date + time — right-aligned, small
-        const now = new Date();
+        const now = roundTimeToNearest(new Date(), 15);
         ctx.font = 'bold 16px sans-serif';
         ctx.textAlign = 'right';
         ctx.fillText(format(now, 'EEEE, MMMM do').toUpperCase(), cb.x + width, lineY + 8);

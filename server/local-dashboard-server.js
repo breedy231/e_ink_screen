@@ -27,7 +27,7 @@ class LocalDashboardServer {
 
         this.imageCache = new Map();
         this.lastBatteryNotification = 0;
-        this.ntfyTopic = process.env.NTFY_TOPIC || 'kindle-dashboard-alerts';
+        this.ntfyTopic = process.env.NTFY_TOPIC || null;
         this.weatherService = new WeatherService({
             latitude: 41.8781,
             longitude: -87.6298,
@@ -49,6 +49,7 @@ class LocalDashboardServer {
     }
 
     checkBatteryAndNotify(batteryLevel) {
+        if (!this.ntfyTopic) return;
         if (batteryLevel === null || batteryLevel === undefined) return;
 
         const level = parseInt(batteryLevel);
@@ -175,7 +176,7 @@ class LocalDashboardServer {
     /**
      * Enrich layout configuration with data
      */
-    enrichLayoutWithData(layoutConfig, weatherData, pokemonData, timeData, calendarData) {
+    enrichLayoutWithData(layoutConfig, weatherData, pokemonData, timeData, calendarData, deviceStats) {
         const enrichedConfig = JSON.parse(JSON.stringify(layoutConfig));
 
         enrichedConfig.components = enrichedConfig.components.map(component => {
@@ -225,7 +226,8 @@ class LocalDashboardServer {
                         ...component.config,
                         weatherData: weatherData,
                         calendarData: calendarData,
-                        pokemonData: pokemonData
+                        pokemonData: pokemonData,
+                        deviceStats: deviceStats
                     }
                 };
             }
@@ -239,7 +241,7 @@ class LocalDashboardServer {
     /**
      * Generate dashboard image buffer using DashboardEngine
      */
-    async generateDashboardBuffer(layout = 'weather') {
+    async generateDashboardBuffer(layout = 'weather', deviceStats = null) {
         try {
             this.log(`Generating dashboard with layout: ${layout}`);
 
@@ -313,7 +315,7 @@ class LocalDashboardServer {
             });
 
             // Enrich layout with data
-            const enrichedConfig = this.enrichLayoutWithData(layoutConfig, weather, pokemonData, timeData, calendarData);
+            const enrichedConfig = this.enrichLayoutWithData(layoutConfig, weather, pokemonData, timeData, calendarData, deviceStats);
 
             // Load layout and render
             engine.loadLayout(enrichedConfig);
@@ -353,6 +355,11 @@ class LocalDashboardServer {
                 this.checkBatteryAndNotify(batteryLevel);
             }
 
+            // Construct deviceStats from query params
+            const deviceStats = batteryLevel ? {
+                battery: { level: batteryLevel, voltage: 'unknown' },
+            } : null;
+
             let imageBuffer;
 
             // Check cache first
@@ -365,7 +372,7 @@ class LocalDashboardServer {
                 const layout = queryParams.get('layout') || this.layout;
 
                 // Generate new image
-                imageBuffer = await this.generateDashboardBuffer(layout);
+                imageBuffer = await this.generateDashboardBuffer(layout, deviceStats);
 
                 // Cache the result
                 if (this.cacheEnabled) {
@@ -558,6 +565,11 @@ class LocalDashboardServer {
             this.log(`📋 API info: http://${this.host}:${this.port}/api`);
             this.log(`🎨 Default layout: ${this.layout}`);
             this.log(`🗄️  Cache: ${this.cacheEnabled} (${this.cacheTimeout}ms TTL)`);
+            if (this.ntfyTopic) {
+                this.log(`🔋 Battery notifications enabled via ntfy.sh`);
+            } else {
+                this.log(`🔋 Battery notifications disabled (set NTFY_TOPIC env var to enable)`);
+            }
         });
 
         // Graceful shutdown
