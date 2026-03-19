@@ -238,7 +238,7 @@ check_network_connectivity() {
     log_debug "Checking network connectivity..."
 
     # Test basic connectivity with ping
-    if command -v ping >/dev/null 2>&1; then
+    if type ping >/dev/null 2>&1; then
         if ping -c 1 -W 5 "${SERVER_HOST}" >/dev/null 2>&1; then
             log_debug "Host ${SERVER_HOST} is reachable"
         else
@@ -263,7 +263,7 @@ check_network_connectivity() {
     rm -f "${health_check}"
 
     # Fallback to curl if wget fails
-    if command -v curl >/dev/null 2>&1; then
+    if type curl >/dev/null 2>&1; then
         if curl --silent --fail --max-time 10 "${health_url}" >/dev/null 2>&1; then
             log_debug "HTTP server is accessible (via curl)"
             return 0
@@ -301,7 +301,7 @@ download_dashboard() {
     fi
 
     # Append battery level if gasgauge-info is available
-    if command -v gasgauge-info >/dev/null 2>&1; then
+    if type gasgauge-info >/dev/null 2>&1; then
         local battery_level
         battery_level=$(gasgauge-info -c 2>/dev/null | tr -d ' %' || echo "")
         if [ -n "${battery_level}" ]; then
@@ -375,7 +375,7 @@ verify_image() {
     fi
 
     # Check PNG header
-    if command -v file >/dev/null 2>&1; then
+    if type file >/dev/null 2>&1; then
         local file_type=$(file -b "${image_file}")
         if [ "${file_type}" != *"PNG"* ]; then
             log_error "Invalid image format: ${file_type}"
@@ -508,7 +508,7 @@ ensure_no_sleep_during_update() {
     log_debug "Temporarily disabling screen saver during update..."
 
     # Prevent screensaver during the update process
-    if command -v lipc-set-prop >/dev/null 2>&1; then
+    if type lipc-set-prop >/dev/null 2>&1; then
         lipc-set-prop com.lab126.powerd preventScreenSaver 1 >/dev/null 2>&1 || true
     fi
 }

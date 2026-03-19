@@ -193,7 +193,7 @@ keep_wifi_alive() {
     fi
 
     # Disable wireless power management at driver level as backup
-    if command -v iwconfig >/dev/null 2>&1; then
+    if type iwconfig >/dev/null 2>&1; then
         local wifi_interface=$(iwconfig 2>/dev/null | grep -o "^[a-z0-9]*" | head -1)
         if [ -n "${wifi_interface}" ]; then
             log_debug "Found WiFi interface: ${wifi_interface}"
@@ -274,7 +274,7 @@ display_status() {
     fi
 
     # Show battery level if available
-    if command -v gasgauge-info >/dev/null 2>&1; then
+    if type gasgauge-info >/dev/null 2>&1; then
         local battery=$(gasgauge-info -c 2>/dev/null || echo "unknown")
         log_info "Battery level: ${battery}%"
     fi

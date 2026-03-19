@@ -99,7 +99,7 @@ restore_wifi_power_management() {
     fi
 
     # Re-enable wireless power management at driver level
-    if command -v iwconfig >/dev/null 2>&1; then
+    if type iwconfig >/dev/null 2>&1; then
         local wifi_interface=$(iwconfig 2>/dev/null | grep -o "^[a-z0-9]*" | head -1)
         if [ -n "${wifi_interface}" ]; then
             log_info "Re-enabling WiFi power management on ${wifi_interface}"
@@ -118,7 +118,7 @@ display_exit_message() {
     # Create a simple exit message image if eips is available
     if [ -x "/usr/sbin/eips" ]; then
         # Try to display a simple text message
-        if command -v eips >/dev/null 2>&1; then
+        if type eips >/dev/null 2>&1; then
             # Clear screen first
             eips -c
 
@@ -218,13 +218,13 @@ show_final_status() {
     log_info "=== Exit Summary ==="
 
     # Show uptime if available
-    if command -v uptime >/dev/null 2>&1; then
+    if type uptime >/dev/null 2>&1; then
         local uptime_info=$(uptime)
         log_info "System uptime: ${uptime_info}"
     fi
 
     # Show battery level if available
-    if command -v gasgauge-info >/dev/null 2>&1; then
+    if type gasgauge-info >/dev/null 2>&1; then
         local battery=$(gasgauge-info -c 2>/dev/null || echo "unknown")
         log_info "Battery level: ${battery}%"
     fi

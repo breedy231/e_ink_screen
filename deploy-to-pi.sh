@@ -67,6 +67,13 @@ if [ "$RESTART" = true ]; then
     STATUS=$(ssh "$PI_HOST" "sudo systemctl is-active kindle-dashboard" 2>/dev/null || echo "unknown")
     if [ "$STATUS" = "active" ]; then
         echo "Service status: active"
+        # Check Discord webhook configuration
+        DISCORD_SET=$(ssh "$PI_HOST" "grep -q DISCORD_WEBHOOK_URL ~/dashboard-server/.env 2>/dev/null && echo yes || echo no")
+        if [ "$DISCORD_SET" = "yes" ]; then
+            echo "Discord notifications: configured"
+        else
+            echo "Discord notifications: not configured (add DISCORD_WEBHOOK_URL to ~/dashboard-server/.env)"
+        fi
     else
         echo "WARNING: Service status: $STATUS"
         echo "Check logs: ssh pi 'sudo journalctl -u kindle-dashboard -n 20'"
