@@ -300,6 +300,19 @@ download_dashboard() {
         log_debug "Force refresh enabled"
     fi
 
+    # Append battery level if gasgauge-info is available
+    if command -v gasgauge-info >/dev/null 2>&1; then
+        local battery_level
+        battery_level=$(gasgauge-info -c 2>/dev/null | tr -d ' %' || echo "")
+        if [ -n "${battery_level}" ]; then
+            case "${dashboard_url}" in
+                *"?"*) dashboard_url="${dashboard_url}&battery=${battery_level}" ;;
+                *)     dashboard_url="${dashboard_url}?battery=${battery_level}" ;;
+            esac
+            log_debug "Battery level: ${battery_level}%"
+        fi
+    fi
+
     log_info "Downloading dashboard from: ${dashboard_url}"
 
     # Attempt download with retries

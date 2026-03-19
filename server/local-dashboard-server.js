@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 const http = require('http');
+const https = require('https');
 const { DashboardEngine } = require('./dashboard-engine');
 const WeatherService = require('./weather-service');
 const PokemonService = require('./pokemon-service');
@@ -25,6 +26,8 @@ class LocalDashboardServer {
         this.layout = options.layout || 'weather-pokemon';
 
         this.imageCache = new Map();
+        this.lastBatteryNotification = 0;
+        this.ntfyTopic = process.env.NTFY_TOPIC || null;
         this.weatherService = new WeatherService({
             latitude: 41.8781,
             longitude: -87.6298,
@@ -43,6 +46,42 @@ class LocalDashboardServer {
     log(message, level = 'INFO') {
         const timestamp = new Date().toISOString();
         console.log(`[${timestamp}] [${level}] ${message}`);
+    }
+
+    checkBatteryAndNotify(batteryLevel) {
+        if (!this.ntfyTopic) return;
+        if (batteryLevel === null || batteryLevel === undefined) return;
+
+        const level = parseInt(batteryLevel);
+        if (isNaN(level) || level > 10) return;
+
+        // Rate limit: once per hour
+        const now = Date.now();
+        if (now - this.lastBatteryNotification < 3600000) return;
+
+        this.lastBatteryNotification = now;
+        this.log(`Battery low: ${level}% — sending notification to ntfy.sh/${this.ntfyTopic}`, 'WARN');
+
+        const postData = `Kindle battery at ${level}%. Time to charge!`;
+        const req = https.request({
+            hostname: 'ntfy.sh',
+            path: `/${this.ntfyTopic}`,
+            method: 'POST',
+            headers: {
+                'Title': 'Kindle Battery Low',
+                'Priority': 'high',
+                'Tags': 'battery,warning'
+            }
+        }, (res) => {
+            this.log(`ntfy.sh response: ${res.statusCode}`);
+        });
+
+        req.on('error', (err) => {
+            this.log(`ntfy.sh error: ${err.message}`, 'ERROR');
+        });
+
+        req.write(postData);
+        req.end();
     }
 
     getCacheKey(url) {
@@ -137,12 +176,12 @@ class LocalDashboardServer {
     /**
      * Enrich layout configuration with data
      */
-    enrichLayoutWithData(layoutConfig, weatherData, pokemonData, timeData, calendarData) {
+    enrichLayoutWithData(layoutConfig, weatherData, pokemonData, timeData, calendarData, deviceStats) {
         const enrichedConfig = JSON.parse(JSON.stringify(layoutConfig));
 
         enrichedConfig.components = enrichedConfig.components.map(component => {
             // Inject weather data into weather components
-            if (component.type === 'weather' && weatherData) {
+            if ((component.type === 'weather' || component.type === 'hero-weather' || component.type === 'weather-illustration') && weatherData) {
                 return {
                     ...component,
                     config: {
@@ -179,6 +218,20 @@ class LocalDashboardServer {
                 };
             }
 
+            // Full-canvas components that need all data
+            if (component.type === 'watch-face' || component.type === 'brutalist' || component.type === 'swiss-poster') {
+                return {
+                    ...component,
+                    config: {
+                        ...component.config,
+                        weatherData: weatherData,
+                        calendarData: calendarData,
+                        pokemonData: pokemonData,
+                        deviceStats: deviceStats
+                    }
+                };
+            }
+
             return component;
         });
 
@@ -188,7 +241,7 @@ class LocalDashboardServer {
     /**
      * Generate dashboard image buffer using DashboardEngine
      */
-    async generateDashboardBuffer(layout = 'weather') {
+    async generateDashboardBuffer(layout = 'weather', deviceStats = null) {
         try {
             this.log(`Generating dashboard with layout: ${layout}`);
 
@@ -211,7 +264,8 @@ class LocalDashboardServer {
 
             // Get Pokemon data if layout has pokemon-sprite component
             let pokemonData = null;
-            const hasPokemonComponent = layoutConfig.components.some(comp => comp.type === 'pokemon-sprite');
+            const fullCanvasTypes = ['watch-face', 'brutalist', 'swiss-poster'];
+            const hasPokemonComponent = layoutConfig.components.some(comp => comp.type === 'pokemon-sprite' || fullCanvasTypes.includes(comp.type));
             if (hasPokemonComponent) {
                 try {
                     pokemonData = await this.pokemonService.getFormattedPokemon();
@@ -223,7 +277,7 @@ class LocalDashboardServer {
 
             // Get calendar data if layout has calendar component
             let calendarData = null;
-            const hasCalendarComponent = layoutConfig.components.some(comp => comp.type === 'calendar');
+            const hasCalendarComponent = layoutConfig.components.some(comp => comp.type === 'calendar' || fullCanvasTypes.includes(comp.type));
             if (hasCalendarComponent) {
                 try {
                     calendarData = await this.calendarService.getFormattedCalendar();
@@ -251,15 +305,17 @@ class LocalDashboardServer {
                 timestamp: now.toISOString()
             };
 
-            // Create dashboard engine
+            // Create dashboard engine (use layout dimensions if specified)
+            const layoutWidth = (layoutConfig.dimensions && layoutConfig.dimensions.width) || 600;
+            const layoutHeight = (layoutConfig.dimensions && layoutConfig.dimensions.height) || 800;
             const engine = new DashboardEngine({
-                width: 600,
-                height: 800,
+                width: layoutWidth,
+                height: layoutHeight,
                 backgroundColor: '#FFFFFF'
             });
 
             // Enrich layout with data
-            const enrichedConfig = this.enrichLayoutWithData(layoutConfig, weather, pokemonData, timeData, calendarData);
+            const enrichedConfig = this.enrichLayoutWithData(layoutConfig, weather, pokemonData, timeData, calendarData, deviceStats);
 
             // Load layout and render
             engine.loadLayout(enrichedConfig);
@@ -293,6 +349,17 @@ class LocalDashboardServer {
             const cacheKey = this.getCacheKey(req.url);
             const cached = this.imageCache.get(cacheKey);
 
+            // Check battery level from Kindle
+            const batteryLevel = parsedUrl.searchParams.get('battery');
+            if (batteryLevel) {
+                this.checkBatteryAndNotify(batteryLevel);
+            }
+
+            // Construct deviceStats from query params
+            const deviceStats = batteryLevel ? {
+                battery: { level: batteryLevel, voltage: 'unknown' },
+            } : null;
+
             let imageBuffer;
 
             // Check cache first
@@ -305,7 +372,7 @@ class LocalDashboardServer {
                 const layout = queryParams.get('layout') || this.layout;
 
                 // Generate new image
-                imageBuffer = await this.generateDashboardBuffer(layout);
+                imageBuffer = await this.generateDashboardBuffer(layout, deviceStats);
 
                 // Cache the result
                 if (this.cacheEnabled) {
@@ -498,6 +565,11 @@ class LocalDashboardServer {
             this.log(`📋 API info: http://${this.host}:${this.port}/api`);
             this.log(`🎨 Default layout: ${this.layout}`);
             this.log(`🗄️  Cache: ${this.cacheEnabled} (${this.cacheTimeout}ms TTL)`);
+            if (this.ntfyTopic) {
+                this.log(`🔋 Battery notifications enabled via ntfy.sh`);
+            } else {
+                this.log(`🔋 Battery notifications disabled (set NTFY_TOPIC env var to enable)`);
+            }
         });
 
         // Graceful shutdown

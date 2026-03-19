@@ -162,6 +162,7 @@ class WeatherService {
                 `daily=weather_code,temperature_2m_max,temperature_2m_min&` +
                 `timezone=${encodeURIComponent(this.timezone)}&` +
                 `temperature_unit=fahrenheit&` +
+                `wind_speed_unit=mph&` +
                 `forecast_days=5`;
 
             https.get(url, (res) => {
@@ -257,7 +258,7 @@ class WeatherService {
                 temperature: `${Math.round(current.temperature_2m)}°F`,
                 condition: currentWeatherInfo.description,
                 humidity: `${current.relative_humidity_2m}%`,
-                windSpeed: `${Math.round(current.wind_speed_10m)} km/h`,
+                windSpeed: `${Math.round(current.wind_speed_10m)} mph`,
                 icon: currentWeatherInfo.icon
             },
             forecast: [],
