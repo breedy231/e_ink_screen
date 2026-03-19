@@ -167,7 +167,7 @@ main() {
     write_pid
 
     # Sync clock before anything else (Kindle clock drifts without framework)
-    if command -v ntpdate >/dev/null 2>&1; then
+    if type ntpdate >/dev/null 2>&1; then
         ntpdate -s pool.ntp.org 2>/dev/null && log_msg "Clock synced via NTP" || log_msg "NTP sync failed (continuing with current time)"
     fi
 
@@ -195,7 +195,7 @@ main() {
 
     while true; do
         # Re-sync clock each cycle to prevent drift
-        if command -v ntpdate >/dev/null 2>&1; then
+        if type ntpdate >/dev/null 2>&1; then
             ntpdate -s pool.ntp.org 2>/dev/null || true
         fi
 

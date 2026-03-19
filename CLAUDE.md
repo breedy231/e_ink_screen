@@ -594,6 +594,9 @@ if [[ "$var" == "value" ]]; then
 
 # Source command
 source file.conf
+
+# command -v (not a builtin in Kindle's BusyBox)
+command -v gasgauge-info >/dev/null 2>&1
 ```
 
 #### ✅ ALWAYS USE (POSIX-compatible):
@@ -628,6 +631,9 @@ if [ "$var" = "value" ]; then
 
 # Dot sourcing
 . file.conf
+
+# Check if a command exists (use `type`, not `command -v`)
+if type gasgauge-info >/dev/null 2>&1; then
 ```
 
 ### Testing Shell Compatibility
@@ -656,6 +662,15 @@ attempt=$((attempt + 1))
 
 # ✅ CORRECT: POSIX arithmetic
 i=$((i - 1))
+```
+
+**Command Existence Checks**:
+```bash
+# ❌ ERROR: `command` is not a builtin in Kindle's BusyBox sh
+command -v gasgauge-info >/dev/null 2>&1
+
+# ✅ CORRECT: `type` is a builtin in BusyBox sh
+type gasgauge-info >/dev/null 2>&1
 ```
 
 **Sleep Prevention Commands**:

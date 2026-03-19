@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 
 const http = require('http');
-const https = require('https');
 const { DashboardEngine } = require('./dashboard-engine');
 const WeatherService = require('./weather-service');
 const PokemonService = require('./pokemon-service');
 const CalendarService = require('./calendar-service');
+const { sendDiscordNotification } = require('./notify');
 const fs = require('fs');
 const path = require('path');
 const { URL } = require('url');
@@ -27,7 +27,7 @@ class LocalDashboardServer {
 
         this.imageCache = new Map();
         this.lastBatteryNotification = 0;
-        this.ntfyTopic = process.env.NTFY_TOPIC || null;
+        this.discordWebhookUrl = process.env.DISCORD_WEBHOOK_URL || null;
         this.weatherService = new WeatherService({
             latitude: 41.8781,
             longitude: -87.6298,
@@ -49,39 +49,38 @@ class LocalDashboardServer {
     }
 
     checkBatteryAndNotify(batteryLevel) {
-        if (!this.ntfyTopic) return;
+        if (!this.discordWebhookUrl) return;
         if (batteryLevel === null || batteryLevel === undefined) return;
 
         const level = parseInt(batteryLevel);
-        if (isNaN(level) || level > 10) return;
+        if (isNaN(level) || level > 20) return;
 
         // Rate limit: once per hour
         const now = Date.now();
         if (now - this.lastBatteryNotification < 3600000) return;
 
         this.lastBatteryNotification = now;
-        this.log(`Battery low: ${level}% — sending notification to ntfy.sh/${this.ntfyTopic}`, 'WARN');
 
-        const postData = `Kindle battery at ${level}%. Time to charge!`;
-        const req = https.request({
-            hostname: 'ntfy.sh',
-            path: `/${this.ntfyTopic}`,
-            method: 'POST',
-            headers: {
-                'Title': 'Kindle Battery Low',
-                'Priority': 'high',
-                'Tags': 'battery,warning'
-            }
-        }, (res) => {
-            this.log(`ntfy.sh response: ${res.statusCode}`);
+        const critical = level <= 10;
+        const severity = critical ? 'Critical' : 'Low';
+        const color = critical ? 0xED4245 : 0xFEE75C; // red or yellow
+
+        this.log(`Battery ${severity.toLowerCase()}: ${level}% — sending Discord notification`, 'WARN');
+
+        sendDiscordNotification(this.discordWebhookUrl, {
+            title: `Kindle Battery ${severity}`,
+            description: `Battery at **${level}%**. ${critical ? 'Charge immediately!' : 'Time to charge soon.'}`,
+            color,
+            fields: [
+                { name: 'Battery', value: `${level}%`, inline: true },
+                { name: 'Severity', value: severity, inline: true },
+                { name: 'Time', value: new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }), inline: true }
+            ]
+        }).then(() => {
+            this.log('Discord notification sent');
+        }).catch((err) => {
+            this.log(`Discord notification error: ${err.message}`, 'ERROR');
         });
-
-        req.on('error', (err) => {
-            this.log(`ntfy.sh error: ${err.message}`, 'ERROR');
-        });
-
-        req.write(postData);
-        req.end();
     }
 
     getCacheKey(url) {
@@ -565,10 +564,10 @@ class LocalDashboardServer {
             this.log(`📋 API info: http://${this.host}:${this.port}/api`);
             this.log(`🎨 Default layout: ${this.layout}`);
             this.log(`🗄️  Cache: ${this.cacheEnabled} (${this.cacheTimeout}ms TTL)`);
-            if (this.ntfyTopic) {
-                this.log(`🔋 Battery notifications enabled via ntfy.sh`);
+            if (this.discordWebhookUrl) {
+                this.log(`🔋 Battery notifications enabled via Discord webhook`);
             } else {
-                this.log(`🔋 Battery notifications disabled (set NTFY_TOPIC env var to enable)`);
+                this.log(`🔋 Battery notifications disabled (set DISCORD_WEBHOOK_URL env var to enable)`);
             }
         });
 

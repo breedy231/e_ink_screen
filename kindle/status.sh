@@ -60,7 +60,7 @@ LAST_UPDATE=$(get_last_update)
 show_status "Last Update: $LAST_UPDATE"
 
 # Battery info
-if command -v gasgauge-info >/dev/null 2>&1; then
+if type gasgauge-info >/dev/null 2>&1; then
     BATTERY=$(gasgauge-info -c 2>/dev/null || echo "Unknown")
     show_status "Battery: $BATTERY%"
 fi
