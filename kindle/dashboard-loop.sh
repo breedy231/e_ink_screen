@@ -151,6 +151,84 @@ do_update() {
     fi
 }
 
+# Compute current hour in Central Time from UTC
+# Handles DST automatically using US rules:
+#   CDT (UTC-5): Second Sunday of March through first Sunday of November
+#   CST (UTC-6): First Sunday of November through second Sunday of March
+get_central_hour() {
+    if [ "$UTC_OFFSET" != "auto" ]; then
+        utc_hour=$(date -u '+%H' | sed 's/^0//')
+        central_hour=$(( (utc_hour + 24 + UTC_OFFSET) % 24 ))
+        echo "$central_hour"
+        return
+    fi
+
+    # Auto-detect DST using US rules
+    utc_month=$(date -u '+%m' | sed 's/^0//')
+    utc_day=$(date -u '+%d' | sed 's/^0//')
+    utc_hour=$(date -u '+%H' | sed 's/^0//')
+    utc_dow=$(date -u '+%w')  # 0=Sunday
+
+    offset=-6  # CST default
+
+    if [ "$utc_month" -gt 3 ] && [ "$utc_month" -lt 11 ]; then
+        # April through October: always CDT
+        offset=-5
+    elif [ "$utc_month" = 3 ]; then
+        # March: CDT starts at 2am local (8am UTC) on second Sunday
+        # Find day of second Sunday: first Sunday + 7
+        first_sunday=$(( (7 - utc_dow + utc_day % 7) % 7 ))
+        first_sunday=$(( utc_day - utc_dow ))
+        # Calculate: what day-of-month was the most recent Sunday?
+        last_sunday=$(( utc_day - utc_dow ))
+        # Second Sunday is between day 8-14
+        # We're in CDT if we're past the second Sunday, or on it after 8am UTC
+        second_sunday_min=8
+        second_sunday_max=14
+        # Find the second Sunday of this month
+        # Day of week of the 1st: (utc_dow - (utc_day - 1) % 7 + 7) % 7
+        dow_first=$(( (utc_dow - (utc_day - 1) % 7 + 7) % 7 ))
+        days_to_first_sun=$(( (7 - dow_first) % 7 ))
+        first_sun_day=$(( 1 + days_to_first_sun ))
+        second_sun_day=$(( first_sun_day + 7 ))
+        if [ "$utc_day" -gt "$second_sun_day" ]; then
+            offset=-5
+        elif [ "$utc_day" -eq "$second_sun_day" ] && [ "$utc_hour" -ge 8 ]; then
+            offset=-5
+        fi
+    elif [ "$utc_month" = 11 ]; then
+        # November: CST starts at 2am local (7am UTC) on first Sunday
+        dow_first=$(( (utc_dow - (utc_day - 1) % 7 + 7) % 7 ))
+        days_to_first_sun=$(( (7 - dow_first) % 7 ))
+        first_sun_day=$(( 1 + days_to_first_sun ))
+        if [ "$utc_day" -lt "$first_sun_day" ]; then
+            offset=-5
+        elif [ "$utc_day" -eq "$first_sun_day" ] && [ "$utc_hour" -lt 7 ]; then
+            offset=-5
+        fi
+    fi
+
+    central_hour=$(( (utc_hour + 24 + offset) % 24 ))
+    echo "$central_hour"
+}
+
+# Check if current time is within active hours
+# Returns 0 (true) if active, 1 (false) if outside active hours
+# If both ACTIVE_HOURS_START and ACTIVE_HOURS_END are 0, always active (disabled)
+is_active_hours() {
+    if [ "$ACTIVE_HOURS_START" = "0" ] && [ "$ACTIVE_HOURS_END" = "0" ]; then
+        return 0
+    fi
+
+    current_hour=$(get_central_hour)
+
+    if [ "$current_hour" -ge "$ACTIVE_HOURS_START" ] && [ "$current_hour" -lt "$ACTIVE_HOURS_END" ]; then
+        return 0
+    fi
+
+    return 1
+}
+
 ##############################################################################
 # Main
 ##############################################################################
@@ -159,9 +237,21 @@ main() {
     mkdir -p "$SCRIPT_DIR/logs"
     rotate_log
 
+    # Load config file if it exists
+    if [ -f "$CONFIG_FILE" ]; then
+        . "$CONFIG_FILE"
+    fi
+
+    # Defaults for active hours (can be overridden by config)
+    ACTIVE_HOURS_START="${ACTIVE_HOURS_START:-7}"
+    ACTIVE_HOURS_END="${ACTIVE_HOURS_END:-22}"
+    UTC_OFFSET="${UTC_OFFSET:-auto}"
+
     log_msg "========================================="
     log_msg "Dashboard loop starting (PID $$)"
     log_msg "  Interval: ${UPDATE_INTERVAL}s"
+    log_msg "  Active hours: ${ACTIVE_HOURS_START}:00-${ACTIVE_HOURS_END}:00 Central"
+    log_msg "  UTC offset: ${UTC_OFFSET}"
     log_msg "========================================="
 
     write_pid
@@ -184,8 +274,13 @@ main() {
         /usr/sbin/eips -f -c 2>/dev/null || true
     fi
 
-    # First update immediately
-    do_update
+    # First update immediately (if within active hours)
+    if is_active_hours; then
+        do_update
+    else
+        current_hour=$(get_central_hour)
+        log_msg "Outside active hours (${current_hour}:00, active ${ACTIVE_HOURS_START}:00-${ACTIVE_HOURS_END}:00), skipping initial fetch"
+    fi
 
     if [ "$RUN_ONCE" = "true" ]; then
         log_msg "Run-once mode, exiting"
@@ -213,7 +308,12 @@ main() {
 
         sleep "$sleep_time"
         rotate_log
-        do_update
+        if is_active_hours; then
+            do_update
+        else
+            current_hour=$(get_central_hour)
+            log_msg "Outside active hours (${current_hour}:00, active ${ACTIVE_HOURS_START}:00-${ACTIVE_HOURS_END}:00), skipping fetch"
+        fi
     done
 
     cleanup
