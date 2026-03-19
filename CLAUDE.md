@@ -234,85 +234,13 @@ ssh root@kindle "ls -la /mnt/us/extensions/kindle-dash/"
 - Proper permissions set automatically (755 for directories, 644 for files)
 - Works with existing dashboard scripts and logging system
 
-## Current Status: [KD-010] Netlify/Cloud Deployment ✅ COMPLETED
+## [KD-010] Netlify/Cloud Deployment - NOT IMPLEMENTED
 
-**Acceptance Criteria**: ✅ All Complete
-- [x] Prepare dashboard generation for cloud deployment
-- [x] Convert to Netlify Function or API route
-- [x] Implement proper caching strategy
-- [x] Add authentication/security
-- [x] Test remote access from Kindle
-- [x] Document deployment process
+**Status**: Planned but never implemented. The Raspberry Pi deployment (KD-013) fulfilled
+the same need more effectively for this use case (local network, zero cost, faster response).
 
-**Delivered Features**:
-- **Serverless Dashboard Generation**: Netlify Function for cloud-based image generation
-- **Token-Based Authentication**: Secure API access with environment variable configuration
-- **Multi-Level Caching**: 5-minute in-memory cache + CDN edge caching
-- **Automated Kindle Integration**: Cron-based scheduling for regular updates
-- **Location Customization**: Per-request weather location override
-- **Layout Support**: All existing layouts (weather, compact, minimal, device)
-- **Error Handling**: Graceful fallbacks and comprehensive logging
-- **CORS Support**: Cross-origin requests for web integration
-
-**Cloud Architecture**:
-- **Netlify Functions**: Serverless dashboard generation endpoint
-- **Canvas Rendering**: Server-side PNG generation optimized for e-ink
-- **Weather API Integration**: Real-time weather data via Open-Meteo
-- **Automatic Deployment**: Git-based deployment with zero-downtime updates
-- **Global CDN**: Fast worldwide access with edge caching
-- **Environment Security**: Token-based auth with secure environment variables
-
-**Kindle Automation**:
-- **Cloud Fetch Script**: POSIX-compatible fetching from cloud endpoint
-- **Automatic Scheduling**: Cron-based updates every 15 minutes (7am-10pm)
-- **Network Resilience**: Retry logic with timeout handling
-- **Configuration Management**: File-based settings with override support
-- **Comprehensive Logging**: Detailed operation logs for troubleshooting
-
-**API Endpoint**: `GET /dashboard?token=TOKEN&layout=weather`
-
-**Parameters**:
-- `token` (required) - Authentication token
-- `layout` (optional) - Dashboard layout (weather, compact, minimal, device)
-- `refresh` (optional) - Force cache refresh (true/false)
-- `lat`/`lon` (optional) - Custom weather location
-- `tz` (optional) - Timezone override
-
-**Usage**:
-```bash
-# Deploy to Netlify
-netlify login
-netlify deploy --prod
-
-# Configure Kindle
-scp kindle/config/cloud-config.conf root@kindle:/mnt/us/dashboard/config/
-scp kindle/fetch-dashboard-cloud.sh root@kindle:/mnt/us/dashboard/
-ssh root@kindle "/mnt/us/dashboard/setup-cloud-cron.sh"
-
-# Test cloud endpoint
-curl "https://your-site.netlify.app/dashboard?token=your-token&layout=weather"
-```
-
-**Files Added/Modified**:
-- `netlify.toml` - Netlify deployment configuration
-- `netlify/functions/dashboard.js` - Main serverless function
-- `package.json` - Cloud deployment dependencies
-- `public/index.html` - Service documentation page
-- `kindle/fetch-dashboard-cloud.sh` - Cloud-based fetch script
-- `kindle/setup-cloud-cron.sh` - Automated scheduling setup
-- `kindle/config/cloud-config.conf` - Cloud endpoint configuration
-- `DEPLOYMENT.md` - Comprehensive deployment guide
-
-**Deployment Benefits**:
-- **Zero Server Maintenance**: Serverless architecture
-- **Global Availability**: 99.9% uptime via Netlify CDN
-- **Cost Effective**: Free tier supports ~3,000 requests/month
-- **Automatic Scaling**: Handles traffic spikes seamlessly
-- **Git Integration**: Deploy via git push
-- **HTTPS by Default**: Secure API endpoint
-- **Real-time Monitoring**: Built-in Netlify analytics
-
-**Next Priority**: [KD-012] Local Auto-Update System
+If revisiting, the original plan included Netlify Functions for serverless PNG generation,
+token-based auth, and a cloud fetch script for the Kindle.
 
 ## Current Status: [KD-012] Local Auto-Update System ✅ COMPLETED
 

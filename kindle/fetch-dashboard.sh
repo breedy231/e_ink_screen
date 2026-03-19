@@ -377,10 +377,14 @@ verify_image() {
     # Check PNG header
     if type file >/dev/null 2>&1; then
         local file_type=$(file -b "${image_file}")
-        if [ "${file_type}" != *"PNG"* ]; then
-            log_error "Invalid image format: ${file_type}"
-            return 1
-        fi
+        case "$file_type" in
+            *PNG*)
+                ;;  # Valid PNG
+            *)
+                log_error "Invalid image format: ${file_type}"
+                return 1
+                ;;
+        esac
     fi
 
     log_debug "Image verification passed: ${file_size} bytes"
