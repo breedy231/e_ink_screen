@@ -7,85 +7,79 @@ const { exec } = require('child_process');
 const util = require('util');
 
 const execPromise = util.promisify(exec);
+const PokemonSelector = require('./pokemon-selector');
 
 /**
  * Pokemon Sprite Service Module
- * Fetches daily Pokemon sprites with caching and e-ink optimization
+ * Fetches daily Pokemon sprites with contextual selection, caching, and e-ink optimization.
+ *
+ * Now supports all 1025 Pokemon with context-aware selection based on
+ * weather, calendar events, and holidays. No Pokemon repeats until all
+ * have been shown.
  */
 
 class PokemonService {
     constructor(options = {}) {
         this.cacheDir = options.cacheDir || path.join(__dirname, '..', 'cache', 'pokemon');
         this.mockData = options.mockData || false;
-        this.maxPokemonId = options.maxPokemonId || 151; // Gen 1 Pokemon only for retro vibe
+        this.maxPokemonId = options.maxPokemonId || 1025; // All Pokemon
         this.spriteType = options.spriteType || 'pixel'; // 'pixel' for retro sprites, 'artwork' for high-res
         this.optimizerScript = options.optimizerScript || path.join(__dirname, 'optimize-sprite-for-eink.py');
         const venvPython = path.join(__dirname, '..', 'test_env', 'bin', 'python3');
         this.pythonPath = options.pythonPath || (fs.existsSync(venvPython) ? venvPython : '/usr/bin/python3');
 
+        // Initialize contextual selector
+        this.selector = new PokemonSelector({
+            dataFile: options.dataFile || path.join(__dirname, 'pokemon-data.json'),
+            historyFile: options.historyFile || path.join(__dirname, '..', 'cache', 'pokemon-history.json'),
+            timezone: options.timezone || 'America/Chicago'
+        });
+
         // Ensure cache directory exists
         if (!fs.existsSync(this.cacheDir)) {
             fs.mkdirSync(this.cacheDir, { recursive: true });
         }
-
-        // Gen 1 Pokemon names (complete list for better display)
-        this.pokemonNames = {
-            1: 'Bulbasaur', 2: 'Ivysaur', 3: 'Venusaur', 4: 'Charmander', 5: 'Charmeleon',
-            6: 'Charizard', 7: 'Squirtle', 8: 'Wartortle', 9: 'Blastoise', 10: 'Caterpie',
-            11: 'Metapod', 12: 'Butterfree', 13: 'Weedle', 14: 'Kakuna', 15: 'Beedrill',
-            16: 'Pidgey', 17: 'Pidgeotto', 18: 'Pidgeot', 19: 'Rattata', 20: 'Raticate',
-            21: 'Spearow', 22: 'Fearow', 23: 'Ekans', 24: 'Arbok', 25: 'Pikachu',
-            26: 'Raichu', 27: 'Sandshrew', 28: 'Sandslash', 29: 'Nidoran♀', 30: 'Nidorina',
-            31: 'Nidoqueen', 32: 'Nidoran♂', 33: 'Nidorino', 34: 'Nidoking', 35: 'Clefairy',
-            36: 'Clefable', 37: 'Vulpix', 38: 'Ninetales', 39: 'Jigglypuff', 40: 'Wigglytuff',
-            41: 'Zubat', 42: 'Golbat', 43: 'Oddish', 44: 'Gloom', 45: 'Vileplume',
-            46: 'Paras', 47: 'Parasect', 48: 'Venonat', 49: 'Venomoth', 50: 'Diglett',
-            51: 'Dugtrio', 52: 'Meowth', 53: 'Persian', 54: 'Psyduck', 55: 'Golduck',
-            56: 'Mankey', 57: 'Primeape', 58: 'Growlithe', 59: 'Arcanine', 60: 'Poliwag',
-            61: 'Poliwhirl', 62: 'Poliwrath', 63: 'Abra', 64: 'Kadabra', 65: 'Alakazam',
-            66: 'Machop', 67: 'Machoke', 68: 'Machamp', 69: 'Bellsprout', 70: 'Weepinbell',
-            71: 'Victreebel', 72: 'Tentacool', 73: 'Tentacruel', 74: 'Geodude', 75: 'Graveler',
-            76: 'Golem', 77: 'Ponyta', 78: 'Rapidash', 79: 'Slowpoke', 80: 'Slowbro',
-            81: 'Magnemite', 82: 'Magneton', 83: 'Farfetch\'d', 84: 'Doduo', 85: 'Dodrio',
-            86: 'Seel', 87: 'Dewgong', 88: 'Grimer', 89: 'Muk', 90: 'Shellder',
-            91: 'Cloyster', 92: 'Gastly', 93: 'Haunter', 94: 'Gengar', 95: 'Onix',
-            96: 'Drowzee', 97: 'Hypno', 98: 'Krabby', 99: 'Kingler', 100: 'Voltorb',
-            101: 'Electrode', 102: 'Exeggcute', 103: 'Exeggutor', 104: 'Cubone', 105: 'Marowak',
-            106: 'Hitmonlee', 107: 'Hitmonchan', 108: 'Lickitung', 109: 'Koffing', 110: 'Weezing',
-            111: 'Rhyhorn', 112: 'Rhydon', 113: 'Chansey', 114: 'Tangela', 115: 'Kangaskhan',
-            116: 'Horsea', 117: 'Seadra', 118: 'Goldeen', 119: 'Seaking', 120: 'Staryu',
-            121: 'Starmie', 122: 'Mr. Mime', 123: 'Scyther', 124: 'Jynx', 125: 'Electabuzz',
-            126: 'Magmar', 127: 'Pinsir', 128: 'Tauros', 129: 'Magikarp', 130: 'Gyarados',
-            131: 'Lapras', 132: 'Ditto', 133: 'Eevee', 134: 'Vaporeon', 135: 'Jolteon',
-            136: 'Flareon', 137: 'Porygon', 138: 'Omanyte', 139: 'Omastar', 140: 'Kabuto',
-            141: 'Kabutops', 142: 'Aerodactyl', 143: 'Snorlax', 144: 'Articuno', 145: 'Zapdos',
-            146: 'Moltres', 147: 'Dratini', 148: 'Dragonair', 149: 'Dragonite', 150: 'Mewtwo',
-            151: 'Mew'
-        };
     }
 
     /**
-     * Get Pokemon ID for today using date-based seed
-     * Ensures same Pokemon displays all day
+     * Get Pokemon name from the database
      */
-    getDailyPokemonId(date = new Date()) {
+    getPokemonName(pokemonId) {
+        const pokemon = this.selector.getPokemonById(pokemonId);
+        return pokemon ? pokemon.name : `Pokemon #${pokemonId}`;
+    }
+
+    /**
+     * Select today's Pokemon based on context (weather, calendar, holidays)
+     * Falls back to date-based selection if no database available
+     */
+    selectDailyPokemon(options = {}) {
+        try {
+            return this.selector.selectPokemon(options);
+        } catch (error) {
+            console.warn(`Context selection failed, using fallback: ${error.message}`);
+            return this._fallbackSelection();
+        }
+    }
+
+    /**
+     * Fallback: simple date-based selection (used if pokemon-data.json missing)
+     */
+    _fallbackSelection(date = new Date()) {
         const dayOfYear = Math.floor(
             (date - new Date(date.getFullYear(), 0, 0)) / 86400000
         );
         const year = date.getFullYear();
-
-        // Use date as seed for consistent daily Pokemon
         const seed = year * 1000 + dayOfYear;
         const pokemonId = (seed % this.maxPokemonId) + 1;
 
-        return pokemonId;
-    }
-
-    /**
-     * Get Pokemon name if known, otherwise return ID
-     */
-    getPokemonName(pokemonId) {
-        return this.pokemonNames[pokemonId] || `Pokemon #${pokemonId}`;
+        return {
+            id: pokemonId,
+            name: this.getPokemonName(pokemonId),
+            types: [],
+            reason: 'fallback',
+            source: 'fallback'
+        };
     }
 
     /**
@@ -178,22 +172,30 @@ class PokemonService {
         return {
             id: 25, // Pikachu
             name: 'Pikachu',
-            spritePath: null, // No actual sprite in mock mode
+            types: ['electric'],
+            reason: 'mock',
+            spritePath: null,
             source: 'mock'
         };
     }
 
     /**
-     * Get today's Pokemon sprite (cached or fresh)
+     * Get today's Pokemon sprite with contextual selection
+     *
+     * @param {Object} context - Context for selection
+     * @param {Object} context.weatherData - Formatted weather data
+     * @param {Object} context.calendarData - Formatted calendar data
      */
-    async getTodaysPokemonSprite() {
+    async getTodaysPokemonSprite(context = {}) {
         // Use mock data if enabled
         if (this.mockData) {
             return this.getMockPokemonData();
         }
 
-        const pokemonId = this.getDailyPokemonId();
-        const pokemonName = this.getPokemonName(pokemonId);
+        // Select Pokemon based on context
+        const selected = this.selectDailyPokemon(context);
+        const pokemonId = selected.id;
+        const pokemonName = selected.name;
         const paths = this.getSpritePaths(pokemonId);
 
         try {
@@ -202,6 +204,8 @@ class PokemonService {
                 return {
                     id: pokemonId,
                     name: pokemonName,
+                    types: selected.types || [],
+                    reason: selected.reason,
                     spritePath: paths.optimized,
                     source: 'cache'
                 };
@@ -216,6 +220,8 @@ class PokemonService {
             return {
                 id: pokemonId,
                 name: pokemonName,
+                types: selected.types || [],
+                reason: selected.reason,
                 spritePath: paths.optimized,
                 source: 'fresh'
             };
@@ -226,6 +232,8 @@ class PokemonService {
             return {
                 id: pokemonId,
                 name: pokemonName,
+                types: selected.types || [],
+                reason: selected.reason,
                 spritePath: null,
                 source: 'error',
                 error: error.message
@@ -240,7 +248,9 @@ class PokemonService {
         return {
             id: pokemonData.id,
             name: pokemonData.name,
-            displayName: `#${pokemonData.id}`,
+            displayName: `#${pokemonData.id} ${pokemonData.name}`,
+            types: pokemonData.types || [],
+            reason: pokemonData.reason || '',
             spritePath: pokemonData.spritePath,
             source: pokemonData.source,
             hasSprite: pokemonData.spritePath !== null
@@ -248,11 +258,22 @@ class PokemonService {
     }
 
     /**
-     * Get formatted Pokemon data for dashboard
+     * Get formatted Pokemon data for dashboard (with context)
+     *
+     * @param {Object} context - Context for selection
+     * @param {Object} context.weatherData - Formatted weather data
+     * @param {Object} context.calendarData - Formatted calendar data
      */
-    async getFormattedPokemon() {
-        const pokemonData = await this.getTodaysPokemonSprite();
+    async getFormattedPokemon(context = {}) {
+        const pokemonData = await this.getTodaysPokemonSprite(context);
         return this.formatPokemonForDashboard(pokemonData);
+    }
+
+    /**
+     * Get selection history stats
+     */
+    getHistoryStats() {
+        return this.selector.getHistoryStats();
     }
 
     /**

@@ -1083,7 +1083,7 @@ class PokemonSpriteComponent extends ComponentBase {
             // Draw sprite
             ctx.drawImage(image, spriteX, spriteY, spriteWidth, spriteHeight);
 
-            // Draw Pokemon ID/name directly below sprite
+            // Draw Pokemon name and number directly below sprite
             if (this.config.showNumber || this.config.showName) {
                 this.setTextStyle(ctx);
                 ctx.textAlign = 'center';
@@ -1093,7 +1093,9 @@ class PokemonSpriteComponent extends ComponentBase {
                 const labelX = contentBounds.x + contentBounds.width / 2;
 
                 let labelText = '';
-                if (this.config.showName && pokemon.name) {
+                if (this.config.showName && this.config.showNumber && pokemon.name) {
+                    labelText = `#${pokemon.id} ${pokemon.name}`;
+                } else if (this.config.showName && pokemon.name) {
                     labelText = pokemon.name;
                 } else if (this.config.showNumber) {
                     labelText = `#${pokemon.id}`;

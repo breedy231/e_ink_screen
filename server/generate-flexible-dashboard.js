@@ -127,21 +127,6 @@ class FlexibleDashboardGenerator {
             }
         }
 
-        // Fetch Pokemon data if we have pokemon-sprite components
-        let pokemonData = null;
-        const hasPokemonComponent = layoutConfig.components.some(comp => comp.type === 'pokemon-sprite' || fullCanvasTypes.includes(comp.type));
-
-        if (hasPokemonComponent) {
-            console.log(`🎮 Fetching today's Pokemon...`);
-            try {
-                pokemonData = await this.pokemonService.getFormattedPokemon();
-                console.log(`✅ Pokemon: #${pokemonData.id} ${pokemonData.name} (${pokemonData.source})`);
-            } catch (error) {
-                console.warn(`⚠️  Failed to fetch Pokemon data: ${error.message}`);
-                pokemonData = null;
-            }
-        }
-
         // Fetch calendar data if we have calendar components
         let calendarData = null;
         const hasCalendarComponent = layoutConfig.components.some(comp => comp.type === 'calendar' || fullCanvasTypes.includes(comp.type));
@@ -154,6 +139,25 @@ class FlexibleDashboardGenerator {
             } catch (error) {
                 console.warn(`⚠️  Failed to fetch calendar data: ${error.message}`);
                 calendarData = null;
+            }
+        }
+
+        // Fetch Pokemon data if we have pokemon-sprite components
+        // Pass weather + calendar context for contextual selection
+        let pokemonData = null;
+        const hasPokemonComponent = layoutConfig.components.some(comp => comp.type === 'pokemon-sprite' || fullCanvasTypes.includes(comp.type));
+
+        if (hasPokemonComponent) {
+            console.log(`🎮 Fetching today's Pokemon...`);
+            try {
+                pokemonData = await this.pokemonService.getFormattedPokemon({
+                    weatherData: weatherData,
+                    calendarData: calendarData
+                });
+                console.log(`✅ Pokemon: #${pokemonData.id} ${pokemonData.name} (${pokemonData.source}, reason: ${pokemonData.reason})`);
+            } catch (error) {
+                console.warn(`⚠️  Failed to fetch Pokemon data: ${error.message}`);
+                pokemonData = null;
             }
         }
 
