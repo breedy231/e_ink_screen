@@ -23,7 +23,7 @@ class LocalDashboardServer {
         this.host = options.host || 'localhost';
         this.cacheEnabled = options.cache !== false;
         this.cacheTimeout = options.cacheTimeout || 60000; // 1 minute default
-        this.layout = options.layout || 'weather-pokemon';
+        this.layout = options.layout || 'wild-swiss';
 
         this.imageCache = new Map();
         this.lastBatteryNotification = 0;

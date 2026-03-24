@@ -424,7 +424,7 @@ Examples:
     }
 
     // Generate single layout
-    const layoutName = args.find(arg => !arg.startsWith('--')) || 'default';
+    const layoutName = args.find(arg => !arg.startsWith('--')) || 'wild-swiss';
     const options = {
         showGrid: args.includes('--grid'),
         test: args.includes('--test')
