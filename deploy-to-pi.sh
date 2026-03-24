@@ -1,9 +1,12 @@
 #!/bin/bash
 # Deploy dashboard server code to Raspberry Pi and restart the service.
-# Usage: ./deploy-to-pi.sh [--preview] [--no-restart]
+# Usage: ./deploy-to-pi.sh [--preview] [--no-restart] [--setup-auto-deploy]
 #
 # This syncs the server/ directory to the Pi and restarts the systemd service.
 # After restart, fetches the generated dashboard image back so you can view it locally.
+#
+# With --setup-auto-deploy: sets up the Pi to automatically pull from GitHub
+# every 15 minutes, so you never need to manually deploy again.
 
 set -e
 
@@ -20,15 +23,27 @@ for arg in "$@"; do
     case $arg in
         --no-restart) RESTART=false ;;
         --preview) PREVIEW=true ;;
+        --setup-auto-deploy) SETUP_AUTO=true ;;
         --help|-h)
-            echo "Usage: ./deploy-to-pi.sh [--preview] [--no-restart]"
+            echo "Usage: ./deploy-to-pi.sh [--preview] [--no-restart] [--setup-auto-deploy]"
             echo ""
-            echo "  --preview      Fetch the generated dashboard image back and open it"
-            echo "  --no-restart   Sync files but don't restart the service"
+            echo "  --preview            Fetch the generated dashboard image back and open it"
+            echo "  --no-restart         Sync files but don't restart the service"
+            echo "  --setup-auto-deploy  Set up Pi to auto-pull from GitHub (one-time setup)"
             exit 0
             ;;
     esac
 done
+
+# Handle auto-deploy setup
+if [ "${SETUP_AUTO:-false}" = true ]; then
+    echo "=== Setting up auto-deploy on Pi ==="
+    echo "This will configure the Pi to automatically pull from GitHub every 15 minutes."
+    echo "After setup, merging a PR to main will auto-deploy within 15 minutes."
+    echo ""
+    ssh "$PI_HOST" 'bash -s' < "$PROJECT_ROOT/pi/setup-auto-deploy.sh"
+    exit 0
+fi
 
 echo "=== Deploy to Pi ==="
 
