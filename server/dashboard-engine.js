@@ -1083,7 +1083,7 @@ class PokemonSpriteComponent extends ComponentBase {
             // Draw sprite
             ctx.drawImage(image, spriteX, spriteY, spriteWidth, spriteHeight);
 
-            // Draw Pokemon ID/name directly below sprite
+            // Draw Pokemon name and number directly below sprite
             if (this.config.showNumber || this.config.showName) {
                 this.setTextStyle(ctx);
                 ctx.textAlign = 'center';
@@ -1093,7 +1093,9 @@ class PokemonSpriteComponent extends ComponentBase {
                 const labelX = contentBounds.x + contentBounds.width / 2;
 
                 let labelText = '';
-                if (this.config.showName && pokemon.name) {
+                if (this.config.showName && this.config.showNumber && pokemon.name) {
+                    labelText = `#${pokemon.id} ${pokemon.name}`;
+                } else if (this.config.showName && pokemon.name) {
                     labelText = pokemon.name;
                 } else if (this.config.showNumber) {
                     labelText = `#${pokemon.id}`;
@@ -1738,12 +1740,27 @@ class SwissPosterComponent extends ComponentBase {
             ctx.fillText(attr, x, qy);
         } catch (e) { /* skip */ }
 
-        // Pokemon sprite — large, in bottom whitespace
+        // Pokemon sprite — large, in bottom whitespace, with name & number
         if (this.config.pokemonData && this.config.pokemonData.spritePath) {
             try {
                 const image = await loadImage(this.config.pokemonData.spritePath);
                 const spriteSize = 130;
-                ctx.drawImage(image, x + w - spriteSize - 10, y + h - spriteSize - 28, spriteSize, spriteSize);
+                const spriteX = x + w - spriteSize - 10;
+                const spriteY = y + h - spriteSize - 48;
+                ctx.drawImage(image, spriteX, spriteY, spriteSize, spriteSize);
+
+                // Name & number below sprite
+                const pokemon = this.config.pokemonData;
+                if (pokemon.name || pokemon.id) {
+                    ctx.font = 'bold 15px sans-serif';
+                    ctx.fillStyle = '#000000';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'top';
+                    const label = pokemon.name && pokemon.id
+                        ? `#${pokemon.id} ${pokemon.name}`
+                        : pokemon.name || `#${pokemon.id}`;
+                    ctx.fillText(label, spriteX + spriteSize / 2, spriteY + spriteSize + 4);
+                }
             } catch (e) { /* skip */ }
         }
 

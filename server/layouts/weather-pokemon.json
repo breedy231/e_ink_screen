@@ -21,10 +21,10 @@
       "type": "pokemon-sprite",
       "position": { "row": 0, "col": 5, "rowSpan": 5, "colSpan": 3 },
       "config": {
-        "showNumber": false,
+        "showNumber": true,
         "showName": true,
-        "fontSize": 13,
-        "spriteSize": 1.0
+        "fontSize": 12,
+        "spriteSize": 0.85
       }
     },
     {

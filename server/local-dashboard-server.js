@@ -23,7 +23,7 @@ class LocalDashboardServer {
         this.host = options.host || 'localhost';
         this.cacheEnabled = options.cache !== false;
         this.cacheTimeout = options.cacheTimeout || 60000; // 1 minute default
-        this.layout = options.layout || 'weather-pokemon';
+        this.layout = options.layout || 'wild-swiss';
 
         this.imageCache = new Map();
         this.lastBatteryNotification = 0;
@@ -261,21 +261,9 @@ class LocalDashboardServer {
             // Get weather data
             const weather = await this.weatherService.getFormattedWeather();
 
-            // Get Pokemon data if layout has pokemon-sprite component
-            let pokemonData = null;
-            const fullCanvasTypes = ['watch-face', 'brutalist', 'swiss-poster'];
-            const hasPokemonComponent = layoutConfig.components.some(comp => comp.type === 'pokemon-sprite' || fullCanvasTypes.includes(comp.type));
-            if (hasPokemonComponent) {
-                try {
-                    pokemonData = await this.pokemonService.getFormattedPokemon();
-                    this.log(`Pokemon: #${pokemonData.id} ${pokemonData.name} (${pokemonData.source})`);
-                } catch (error) {
-                    this.log(`Failed to get Pokemon data: ${error.message}`, 'WARN');
-                }
-            }
-
             // Get calendar data if layout has calendar component
             let calendarData = null;
+            const fullCanvasTypes = ['watch-face', 'brutalist', 'swiss-poster'];
             const hasCalendarComponent = layoutConfig.components.some(comp => comp.type === 'calendar' || fullCanvasTypes.includes(comp.type));
             if (hasCalendarComponent) {
                 try {
@@ -283,6 +271,22 @@ class LocalDashboardServer {
                     this.log(`Calendar: ${calendarData.today.length} today, ${calendarData.tomorrow.length} tomorrow (${calendarData.source})`);
                 } catch (error) {
                     this.log(`Failed to get calendar data: ${error.message}`, 'WARN');
+                }
+            }
+
+            // Get Pokemon data if layout has pokemon-sprite component
+            // Pass weather + calendar context for contextual selection
+            let pokemonData = null;
+            const hasPokemonComponent = layoutConfig.components.some(comp => comp.type === 'pokemon-sprite' || fullCanvasTypes.includes(comp.type));
+            if (hasPokemonComponent) {
+                try {
+                    pokemonData = await this.pokemonService.getFormattedPokemon({
+                        weatherData: weather,
+                        calendarData: calendarData
+                    });
+                    this.log(`Pokemon: #${pokemonData.id} ${pokemonData.name} (${pokemonData.source}, reason: ${pokemonData.reason})`);
+                } catch (error) {
+                    this.log(`Failed to get Pokemon data: ${error.message}`, 'WARN');
                 }
             }
 

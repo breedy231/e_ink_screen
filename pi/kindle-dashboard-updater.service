@@ -1,0 +1,10 @@
+[Unit]
+Description=Kindle Dashboard Auto-Deploy
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=pi
+ExecStart=/home/pi/e_ink_screen/pi/auto-deploy.sh
+WorkingDirectory=/home/pi/e_ink_screen
