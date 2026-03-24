@@ -9,9 +9,9 @@
 #   2. Installs server dependencies
 #   3. Migrates the systemd service to use the repo's server/ directory
 #   4. Preserves your .env file (Discord webhook, etc.)
-#   5. Installs a systemd timer to auto-pull from GitHub every 15 minutes
+#   5. Installs a systemd timer to auto-pull from GitHub daily at 6am
 #
-# After setup, merging a PR to main will auto-deploy to the Pi within 15 minutes.
+# After setup, merging a PR to main will auto-deploy to the Pi by the next morning.
 
 set -e
 
@@ -109,7 +109,7 @@ ExecStart=$REPO_DIR/pi/auto-deploy.sh
 WorkingDirectory=$REPO_DIR
 EOF
 
-# Install the timer (every 15 minutes)
+# Install the timer (daily at 6am)
 sudo cp "$REPO_DIR/pi/kindle-dashboard-updater.timer" /etc/systemd/system/
 
 # Reload and enable
@@ -135,7 +135,7 @@ echo "  Repo location:     $REPO_DIR"
 echo "  Server directory:  $NEW_SERVER_DIR"
 echo "  Auto-deploy log:   $HOME/auto-deploy.log"
 echo ""
-echo "  The Pi will check GitHub every 15 minutes."
+echo "  The Pi will check GitHub daily at 6am."
 echo "  When main has new commits, it will pull and restart automatically."
 echo ""
 echo "  Useful commands:"

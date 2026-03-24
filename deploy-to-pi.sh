@@ -38,8 +38,8 @@ done
 # Handle auto-deploy setup
 if [ "${SETUP_AUTO:-false}" = true ]; then
     echo "=== Setting up auto-deploy on Pi ==="
-    echo "This will configure the Pi to automatically pull from GitHub every 15 minutes."
-    echo "After setup, merging a PR to main will auto-deploy within 15 minutes."
+    echo "This will configure the Pi to automatically pull from GitHub daily at 6am."
+    echo "After setup, merging a PR to main will auto-deploy by the next morning."
     echo ""
     ssh "$PI_HOST" 'bash -s' < "$PROJECT_ROOT/pi/setup-auto-deploy.sh"
     exit 0
