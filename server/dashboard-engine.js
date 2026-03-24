@@ -1746,20 +1746,20 @@ class SwissPosterComponent extends ComponentBase {
                 const image = await loadImage(this.config.pokemonData.spritePath);
                 const spriteSize = 130;
                 const spriteX = x + w - spriteSize - 10;
-                const spriteY = y + h - spriteSize - 28;
+                const spriteY = y + h - spriteSize - 48;
                 ctx.drawImage(image, spriteX, spriteY, spriteSize, spriteSize);
 
                 // Name & number below sprite
                 const pokemon = this.config.pokemonData;
                 if (pokemon.name || pokemon.id) {
-                    ctx.font = '11px sans-serif';
-                    ctx.fillStyle = '#999999';
+                    ctx.font = 'bold 15px sans-serif';
+                    ctx.fillStyle = '#000000';
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'top';
                     const label = pokemon.name && pokemon.id
                         ? `#${pokemon.id} ${pokemon.name}`
                         : pokemon.name || `#${pokemon.id}`;
-                    ctx.fillText(label, spriteX + spriteSize / 2, spriteY + spriteSize + 2);
+                    ctx.fillText(label, spriteX + spriteSize / 2, spriteY + spriteSize + 4);
                 }
             } catch (e) { /* skip */ }
         }
