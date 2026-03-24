@@ -1740,12 +1740,27 @@ class SwissPosterComponent extends ComponentBase {
             ctx.fillText(attr, x, qy);
         } catch (e) { /* skip */ }
 
-        // Pokemon sprite — large, in bottom whitespace
+        // Pokemon sprite — large, in bottom whitespace, with name & number
         if (this.config.pokemonData && this.config.pokemonData.spritePath) {
             try {
                 const image = await loadImage(this.config.pokemonData.spritePath);
                 const spriteSize = 130;
-                ctx.drawImage(image, x + w - spriteSize - 10, y + h - spriteSize - 28, spriteSize, spriteSize);
+                const spriteX = x + w - spriteSize - 10;
+                const spriteY = y + h - spriteSize - 28;
+                ctx.drawImage(image, spriteX, spriteY, spriteSize, spriteSize);
+
+                // Name & number below sprite
+                const pokemon = this.config.pokemonData;
+                if (pokemon.name || pokemon.id) {
+                    ctx.font = '11px sans-serif';
+                    ctx.fillStyle = '#999999';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'top';
+                    const label = pokemon.name && pokemon.id
+                        ? `#${pokemon.id} ${pokemon.name}`
+                        : pokemon.name || `#${pokemon.id}`;
+                    ctx.fillText(label, spriteX + spriteSize / 2, spriteY + spriteSize + 2);
+                }
             } catch (e) { /* skip */ }
         }
 
