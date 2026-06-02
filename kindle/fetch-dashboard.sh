@@ -313,6 +313,17 @@ download_dashboard() {
         fi
     fi
 
+    # Append charging status via sysfs
+    local charging_status="unknown"
+    if [ -f "/sys/class/power_supply/mc13892_bat/status" ]; then
+        charging_status=$(cat /sys/class/power_supply/mc13892_bat/status 2>/dev/null | tr '[:upper:]' '[:lower:]' || echo "unknown")
+    fi
+    case "${dashboard_url}" in
+        *"?"*) dashboard_url="${dashboard_url}&charging=${charging_status}" ;;
+        *)     dashboard_url="${dashboard_url}?charging=${charging_status}" ;;
+    esac
+    log_debug "Charging status: ${charging_status}"
+
     log_info "Downloading dashboard from: ${dashboard_url}"
 
     # Attempt download with retries

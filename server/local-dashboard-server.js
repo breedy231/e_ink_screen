@@ -26,7 +26,7 @@ class LocalDashboardServer {
         this.layout = options.layout || 'wild-swiss';
 
         this.imageCache = new Map();
-        this.lastBatteryNotification = 0;
+        this.lastBatteryNotificationLevel = null; // last 5%-bucket we notified at
         this.discordWebhookUrl = process.env.DISCORD_WEBHOOK_URL || null;
         this.weatherService = new WeatherService({
             latitude: 41.8781,
@@ -48,20 +48,23 @@ class LocalDashboardServer {
         console.log(`[${timestamp}] [${level}] ${message}`);
     }
 
-    checkBatteryAndNotify(batteryLevel) {
+    checkBatteryAndNotify(batteryLevel, chargingStatus) {
         if (!this.discordWebhookUrl) return;
         if (batteryLevel === null || batteryLevel === undefined) return;
 
         const level = parseInt(batteryLevel);
-        if (isNaN(level) || level > 20) return;
+        if (isNaN(level) || level > 15) return;
 
-        // Rate limit: once per hour
-        const now = Date.now();
-        if (now - this.lastBatteryNotification < 3600000) return;
+        // Skip when actively charging
+        if (chargingStatus === 'charging') return;
 
-        this.lastBatteryNotification = now;
+        // Only ping once per 5% bucket (15, 10, 5) as level drops
+        const bucket = Math.floor(level / 5) * 5;
+        if (this.lastBatteryNotificationLevel !== null && bucket >= this.lastBatteryNotificationLevel) return;
 
-        const critical = level <= 10;
+        this.lastBatteryNotificationLevel = bucket;
+
+        const critical = level <= 5;
         const severity = critical ? 'Critical' : 'Low';
         const color = critical ? 0xED4245 : 0xFEE75C; // red or yellow
 
@@ -354,8 +357,9 @@ class LocalDashboardServer {
 
             // Check battery level from Kindle
             const batteryLevel = parsedUrl.searchParams.get('battery');
+            const chargingStatus = parsedUrl.searchParams.get('charging');
             if (batteryLevel) {
-                this.checkBatteryAndNotify(batteryLevel);
+                this.checkBatteryAndNotify(batteryLevel, chargingStatus);
             }
 
             // Construct deviceStats from query params
