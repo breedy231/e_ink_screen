@@ -55,8 +55,8 @@ class LocalDashboardServer {
         const level = parseInt(batteryLevel);
         if (isNaN(level) || level > 15) return;
 
-        // Skip when actively charging
-        if (chargingStatus === 'charging') return;
+        // Skip when actively charging (lipc-get-prop isCharging returns "1")
+        if (chargingStatus === '1') return;
 
         // Only ping once per 5% bucket (15, 10, 5) as level drops
         const bucket = Math.floor(level / 5) * 5;

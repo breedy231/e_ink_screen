@@ -313,10 +313,10 @@ download_dashboard() {
         fi
     fi
 
-    # Append charging status via sysfs
+    # Append charging status via lipc
     local charging_status="unknown"
-    if [ -f "/sys/class/power_supply/mc13892_bat/status" ]; then
-        charging_status=$(cat /sys/class/power_supply/mc13892_bat/status 2>/dev/null | tr '[:upper:]' '[:lower:]' || echo "unknown")
+    if type lipc-get-prop >/dev/null 2>&1; then
+        charging_status=$(lipc-get-prop com.lab126.powerd isCharging 2>/dev/null || echo "unknown")
     fi
     case "${dashboard_url}" in
         *"?"*) dashboard_url="${dashboard_url}&charging=${charging_status}" ;;
