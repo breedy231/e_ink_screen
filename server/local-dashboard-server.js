@@ -53,10 +53,16 @@ class LocalDashboardServer {
         if (batteryLevel === null || batteryLevel === undefined) return;
 
         const level = parseInt(batteryLevel);
-        if (isNaN(level) || level > 15) return;
+        this.log(`Battery check: level=${level}% charging=${chargingStatus}`, 'DEBUG');
 
-        // Skip when actively charging (lipc-get-prop isCharging returns "1")
-        if (chargingStatus === '1') return;
+        if (isNaN(level) || level > 20) return;
+
+        // Skip when actively charging; accept "1", "true", or "charging" defensively
+        const isCharging = chargingStatus === '1' || chargingStatus === 'true' || chargingStatus === 'charging';
+        if (isCharging) {
+            this.log(`Battery ${level}% but charging — skipping notification`, 'DEBUG');
+            return;
+        }
 
         // Only ping once per 5% bucket (15, 10, 5) as level drops
         const bucket = Math.floor(level / 5) * 5;
@@ -64,7 +70,7 @@ class LocalDashboardServer {
 
         this.lastBatteryNotificationLevel = bucket;
 
-        const critical = level <= 5;
+        const critical = level <= 10;
         const severity = critical ? 'Critical' : 'Low';
         const color = critical ? 0xED4245 : 0xFEE75C; // red or yellow
 

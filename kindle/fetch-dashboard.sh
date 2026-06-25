@@ -313,16 +313,22 @@ download_dashboard() {
         fi
     fi
 
-    # Append charging status via lipc
-    local charging_status="unknown"
-    if type lipc-get-prop >/dev/null 2>&1; then
-        charging_status=$(lipc-get-prop com.lab126.powerd isCharging 2>/dev/null || echo "unknown")
+    # Append charging status via lipc — sanitize to "0"/"1" only to avoid
+    # URL corruption if lipc-get-prop prints an error string to stdout.
+    local charging_status="0"
+    if [ -x "/usr/bin/lipc-get-prop" ]; then
+        local raw_charging
+        raw_charging=$(/usr/bin/lipc-get-prop com.lab126.powerd isCharging 2>/dev/null || echo "0")
+        case "${raw_charging}" in
+            1) charging_status="1" ;;
+            *) charging_status="0" ;;
+        esac
     fi
     case "${dashboard_url}" in
         *"?"*) dashboard_url="${dashboard_url}&charging=${charging_status}" ;;
         *)     dashboard_url="${dashboard_url}?charging=${charging_status}" ;;
     esac
-    log_debug "Charging status: ${charging_status}"
+    log_debug "Charging status: ${charging_status} (raw: ${raw_charging})"
 
     log_info "Downloading dashboard from: ${dashboard_url}"
 
