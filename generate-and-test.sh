@@ -5,12 +5,13 @@
 set -e
 
 # Configuration
-PROJECT_ROOT="/Users/brendanreed/repos/e_ink_screen"
+PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
 SERVER_DIR="$PROJECT_ROOT/server"
 TEST_ENV="$PROJECT_ROOT/test_env"
-KINDLE_IP="192.168.50.104"
-KINDLE_USER="root"
-KINDLE_PASSWORD="Eragon23129"
+KINDLE_IP="${KINDLE_IP:-192.168.50.104}"
+KINDLE_USER="${KINDLE_USER:-root}"
+# Never hardcode the password — export KINDLE_PASSWORD before running (only needed for --deploy)
+KINDLE_PASSWORD="${KINDLE_PASSWORD:-}"
 
 # Colors for output
 RED='\033[0;31m'
@@ -87,8 +88,18 @@ optimize_dashboard() {
     log_success "Dashboard optimized for e-ink"
 }
 
+# Fail loudly if the Kindle password isn't provided via environment
+require_kindle_password() {
+    if [[ -z "$KINDLE_PASSWORD" ]]; then
+        log_error "KINDLE_PASSWORD is not set. Export it before using --deploy:"
+        log_error "  export KINDLE_PASSWORD='...'"
+        exit 1
+    fi
+}
+
 # Function to test Kindle connectivity
 test_kindle_connection() {
+    require_kindle_password
     log_info "Testing Kindle connectivity..."
 
     timeout 5 expect -c "
@@ -123,6 +134,7 @@ deploy_device_stats_script() {
     local script_path="$PROJECT_ROOT/kindle/get-device-stats.sh"
     local target_path="/mnt/us/dashboard/get-device-stats.sh"
 
+    require_kindle_password
     log_info "Deploying device stats script to Kindle..."
 
     # Transfer script
@@ -166,6 +178,7 @@ deploy_to_kindle() {
     local image_path="$1"
     local image_name=$(basename "$image_path")
 
+    require_kindle_password
     log_info "Deploying dashboard to Kindle..."
 
     # Transfer image

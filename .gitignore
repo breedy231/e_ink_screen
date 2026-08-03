@@ -35,6 +35,7 @@ temp/
 *.pem
 *.key
 .env
+server/.env
 config/secrets.conf
 kindle/config/*password*
 kindle/config/*secret*

@@ -51,11 +51,21 @@ class DeviceStats {
      */
     fetchKindleStats() {
         return new Promise((resolve, reject) => {
+            // Password comes from the environment — never hardcode it (see server/.env.example)
+            const kindlePassword = process.env.KINDLE_PASSWORD;
+            if (!kindlePassword) {
+                console.warn('KINDLE_PASSWORD not set; falling back to mock device stats');
+                const mockStats = this.createMockStatsSync();
+                mockStats._source = 'mock_no_password';
+                resolve(mockStats);
+                return;
+            }
+
             // For testing, let's use expect to handle password authentication
             const expectScript = `
                 spawn ssh -o ConnectTimeout=5 -o PreferredAuthentications=password -o PubkeyAuthentication=no ${this.kindleUser}@${this.kindleHost}
                 expect "password:"
-                send "Eragon23129\\r"
+                send "${kindlePassword}\\r"
                 expect "# "
                 send "${this.kindleStatsScript} --format json\\r"
                 expect "# "
