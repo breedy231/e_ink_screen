@@ -76,10 +76,13 @@ fi
 
 echo "=== 4. Secret scan (tracked files) ==="
 # Known-leaked strings must never reappear; broaden patterns as needed.
-# SECURITY_ROTATION.md documents the (rotated) historical leak and is exempt.
-if git grep -iIlE 'eragon|icloud\.com/published' -- ':!SECURITY_ROTATION.md' >/dev/null 2>&1; then
+# SECURITY_ROTATION.md documents the (rotated) historical leak, and this
+# script contains the patterns themselves — both are exempt.
+SECRET_PATTERN='eragon|icloud\.com/published'
+SECRET_EXEMPT=':!SECURITY_ROTATION.md :!scripts/validate.sh'
+if git grep -iIlE "$SECRET_PATTERN" -- $SECRET_EXEMPT >/dev/null 2>&1; then
     fail "secret pattern found in tracked files:"
-    git grep -iIlE 'eragon|icloud\.com/published' -- ':!SECURITY_ROTATION.md' | sed 's/^/      /'
+    git grep -iIlE "$SECRET_PATTERN" -- $SECRET_EXEMPT | sed 's/^/      /'
 else
     pass "no known secret patterns in tracked files"
 fi
