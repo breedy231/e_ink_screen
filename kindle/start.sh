@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 ##############################################################################
 # Kindle Dashboard Start Script
@@ -240,8 +240,9 @@ initial_dashboard_fetch() {
 
     local fetch_script="${SCRIPT_DIR}/fetch-dashboard.sh"
 
-    if [ -x "${fetch_script}" ]; then
-        if "${fetch_script}" --config "${CONFIG_FILE}" --verbose; then
+    # Invoke via sh: /mnt/us is vfat, so exec bits don't survive there
+    if [ -f "${fetch_script}" ]; then
+        if sh "${fetch_script}" --config "${CONFIG_FILE}" --verbose; then
             log_info "Initial dashboard fetch completed successfully"
             return 0
         else
@@ -249,7 +250,7 @@ initial_dashboard_fetch() {
             return 1
         fi
     else
-        log_error "Fetch script not found or not executable: ${fetch_script}"
+        log_error "Fetch script not found: ${fetch_script}"
         return 1
     fi
 }
@@ -317,11 +318,13 @@ main() {
     # Prepare directories
     prepare_directories
 
-    # Stop framework if requested
-    stop_framework "${stop_framework}"
+    # Stop framework if requested (non-fatal under set -e: a failure here
+    # shouldn't prevent the loop from launching)
+    stop_framework "${stop_framework}" || log_warn "Framework stop failed (continuing)"
 
-    # Clear screen completely to prevent UI bleed-in (after framework stop)
-    clear_screen_completely
+    # Clear screen completely to prevent UI bleed-in (after framework stop).
+    # Cosmetic — never abort startup over a failed eips pass.
+    clear_screen_completely || log_warn "Screen clear incomplete (continuing)"
 
     # Prevent screen sleep to keep dashboard visible (after screen clear)
     prevent_screen_sleep
@@ -342,16 +345,19 @@ main() {
         rm -f "$loop_pid_file"
     fi
 
-    # Launch dashboard loop in background (handles fetch, display, sleep/wake)
+    # Launch dashboard loop in background (handles fetch, display, sleep/wake).
+    # Invoke via sh: /mnt/us is vfat, so exec bits don't survive there.
+    # The loop writes its own log; stdout goes to /dev/null to avoid
+    # duplicating every line in dashboard-loop.log.
     local loop_script="${SCRIPT_DIR}/dashboard-loop.sh"
-    if [ -x "$loop_script" ]; then
+    if [ -f "$loop_script" ]; then
         log_info "Launching dashboard loop..."
-        setsid "$loop_script" >> "${DASHBOARD_DIR}/logs/dashboard-loop.log" 2>&1 &
+        setsid sh "$loop_script" > /dev/null 2>&1 &
         log_info "Dashboard loop started (PID $!)"
         log_info "Use ./stop.sh to exit dashboard mode"
         exit 0
     else
-        log_error "dashboard-loop.sh not found or not executable"
+        log_error "dashboard-loop.sh not found"
         # Fall back to one-shot fetch
         if initial_dashboard_fetch; then
             log_info "Dashboard displayed (one-shot, no loop)"
