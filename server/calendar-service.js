@@ -3,6 +3,7 @@
 const ical = require('node-ical');
 const fs = require('fs');
 const path = require('path');
+const config = require('./config');
 
 /**
  * Calendar Service Module using iCal
@@ -13,8 +14,8 @@ class CalendarService {
     constructor(options = {}) {
         // Calendar URL is private (contains an auth token) — never hardcode it.
         // Set CALENDAR_URL in the environment (see server/.env.example).
-        this.calendarUrl = options.calendarUrl || process.env.CALENDAR_URL || null;
-        this.timezone = options.timezone || 'America/Chicago';
+        this.calendarUrl = options.calendarUrl || config.CALENDAR_URL;
+        this.timezone = options.timezone || config.TIMEZONE;
         this.cacheDir = options.cacheDir || path.join(__dirname, '..', 'cache');
         this.cacheTimeout = options.cacheTimeout || 15 * 60 * 1000; // 15 minutes
         this.mockData = options.mockData || false;

@@ -3,6 +3,7 @@
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
+const config = require('./config');
 
 /**
  * Weather Service Module using Open-Meteo API
@@ -11,11 +12,12 @@ const path = require('path');
 
 class WeatherService {
     constructor(options = {}) {
-        this.latitude = options.latitude || 41.8781; // Default: Chicago
-        this.longitude = options.longitude || -87.6298;
-        this.timezone = options.timezone || 'America/Chicago';
+        this.latitude = options.latitude || config.LATITUDE;
+        this.longitude = options.longitude || config.LONGITUDE;
+        this.timezone = options.timezone || config.TIMEZONE;
         this.cacheDir = options.cacheDir || path.join(__dirname, '..', 'cache');
         this.cacheTimeout = options.cacheTimeout || 30 * 60 * 1000; // 30 minutes
+        this.requestTimeout = options.requestTimeout || 15000; // 15 seconds
         this.mockData = options.mockData || false;
 
         // Ensure cache directory exists
@@ -165,7 +167,15 @@ class WeatherService {
                 `wind_speed_unit=mph&` +
                 `forecast_days=5`;
 
-            https.get(url, (res) => {
+            const req = https.get(url, { timeout: this.requestTimeout }, (res) => {
+                // Non-200 bodies are HTML/error JSON — fail as a typed error,
+                // not a JSON parse error
+                if (res.statusCode !== 200) {
+                    res.resume(); // drain so the socket is freed
+                    reject(new Error(`Weather API returned HTTP ${res.statusCode}`));
+                    return;
+                }
+
                 let data = '';
 
                 res.on('data', (chunk) => {
@@ -182,7 +192,14 @@ class WeatherService {
                         reject(new Error(`Failed to parse weather data: ${error.message}`));
                     }
                 });
-            }).on('error', (error) => {
+            });
+
+            // A hung socket would otherwise stall dashboard rendering forever
+            req.on('timeout', () => {
+                req.destroy(new Error(`Weather API request timed out after ${this.requestTimeout}ms`));
+            });
+
+            req.on('error', (error) => {
                 reject(new Error(`Failed to fetch weather data: ${error.message}`));
             });
         });

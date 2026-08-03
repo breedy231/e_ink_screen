@@ -2,22 +2,25 @@
 
 const { createCanvas, loadImage } = require('canvas');
 const fs = require('fs');
-const path = require('path');
 const { format } = require('date-fns');
-
-/**
- * Round a Date down to the last N-minute boundary.
- * Shows the interval you're currently in, not the next one.
- * e.g. 3:40 with 15min interval => 3:30, 3:28 => 3:15
- */
-function roundTimeToNearest(date, intervalMinutes = 15) {
-    const ms = intervalMinutes * 60 * 1000;
-    return new Date(Math.floor(date.getTime() / ms) * ms);
-}
+const config = require('./config');
+const {
+    roundTimeToNearest,
+    getWeatherSymbol,
+    truncateText,
+    wrapText,
+    getDailyQuote,
+    batteryIcon
+} = require('./render-utils');
 
 /**
  * Flexible Dashboard Layout Engine for Kindle E-ink Display
- * Modular component system with grid-based positioning
+ * Modular component system with grid-based positioning.
+ *
+ * Components declare their data dependencies via `static dataNeeds` and are
+ * wired up once in COMPONENT_REGISTRY at the bottom of this file. Adding a
+ * new component = new class with dataNeeds + one registry entry; layout
+ * enrichment and service selection pick it up automatically.
  */
 
 class GridSystem {
@@ -158,6 +161,15 @@ class ComponentBase {
     }
 
     /**
+     * X coordinate matching this component's textAlign setting
+     */
+    getTextX(contentBounds) {
+        if (this.config.textAlign === 'left') return contentBounds.x;
+        if (this.config.textAlign === 'right') return contentBounds.x + contentBounds.width;
+        return contentBounds.x + contentBounds.width / 2;
+    }
+
+    /**
      * Abstract render method - must be implemented by subclasses
      */
     render(ctx, bounds) {
@@ -166,6 +178,9 @@ class ComponentBase {
 }
 
 class ClockComponent extends ComponentBase {
+    // Data this component needs injected (see enrichLayoutWithData)
+    static dataNeeds = [];
+
     constructor(config = {}) {
         super('clock', {
             fontSize: 72,
@@ -176,12 +191,6 @@ class ClockComponent extends ComponentBase {
             secondsSize: config.secondsSize || 0.5,
             ...config
         });
-    }
-
-    getTextX(contentBounds) {
-        if (this.config.textAlign === 'left') return contentBounds.x;
-        if (this.config.textAlign === 'right') return contentBounds.x + contentBounds.width;
-        return contentBounds.x + contentBounds.width / 2;
     }
 
     render(ctx, bounds) {
@@ -217,88 +226,10 @@ class ClockComponent extends ComponentBase {
     }
 }
 
-class AnalogClockComponent extends ComponentBase {
-    constructor(config = {}) {
-        super('analog-clock', {
-            showNumbers: config.showNumbers !== false,
-            handColor: config.handColor || '#000000',
-            tickColor: config.tickColor || '#000000',
-            faceColor: config.faceColor || '#FFFFFF',
-            borderWidth: config.borderWidth || 3,
-            ...config
-        });
-    }
-
-    render(ctx, bounds) {
-        this.drawContainer(ctx, bounds);
-        const contentBounds = this.getContentBounds(bounds);
-
-        // Clock is square — use the smaller dimension
-        const diameter = Math.min(contentBounds.width, contentBounds.height);
-        const radius = diameter / 2;
-        const centerX = contentBounds.x + contentBounds.width / 2;
-        const centerY = contentBounds.y + contentBounds.height / 2;
-
-        // Clock face — clean circle
-        ctx.fillStyle = this.config.faceColor;
-        ctx.beginPath();
-        ctx.arc(centerX, centerY, radius - 2, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = this.config.handColor;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(centerX, centerY, radius - 2, 0, Math.PI * 2);
-        ctx.stroke();
-
-        // Simple hour markers — small dots, not ticks
-        for (let i = 0; i < 12; i++) {
-            const angle = (i * Math.PI * 2) / 12 - Math.PI / 2;
-            const dotR = radius - 14;
-            const dotSize = i % 3 === 0 ? 4 : 2;
-            ctx.fillStyle = this.config.tickColor;
-            ctx.beginPath();
-            ctx.arc(
-                centerX + Math.cos(angle) * dotR,
-                centerY + Math.sin(angle) * dotR,
-                dotSize, 0, Math.PI * 2
-            );
-            ctx.fill();
-        }
-
-        // Current time (rounded to nearest 5 min)
-        const now = roundTimeToNearest(new Date(), 15);
-        const hours = now.getHours() % 12;
-        const minutes = now.getMinutes();
-
-        // Hour hand — tapered, elegant
-        const hourAngle = ((hours + minutes / 60) * Math.PI * 2) / 12 - Math.PI / 2;
-        const hourLength = radius * 0.5;
-        ctx.strokeStyle = this.config.handColor;
-        ctx.lineWidth = 5;
-        ctx.lineCap = 'round';
-        ctx.beginPath();
-        ctx.moveTo(centerX, centerY);
-        ctx.lineTo(centerX + Math.cos(hourAngle) * hourLength, centerY + Math.sin(hourAngle) * hourLength);
-        ctx.stroke();
-
-        // Minute hand — thinner, longer
-        const minuteAngle = (minutes * Math.PI * 2) / 60 - Math.PI / 2;
-        const minuteLength = radius * 0.72;
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.moveTo(centerX, centerY);
-        ctx.lineTo(centerX + Math.cos(minuteAngle) * minuteLength, centerY + Math.sin(minuteAngle) * minuteLength);
-        ctx.stroke();
-
-        // Center dot
-        ctx.fillStyle = this.config.handColor;
-        ctx.beginPath();
-        ctx.arc(centerX, centerY, 4, 0, Math.PI * 2);
-        ctx.fill();
-    }
-}
-
 class DateComponent extends ComponentBase {
+    // Data this component needs injected (see enrichLayoutWithData)
+    static dataNeeds = [];
+
     constructor(config = {}) {
         super('date', {
             fontSize: 24,
@@ -309,12 +240,6 @@ class DateComponent extends ComponentBase {
             showDayOfYear: config.showDayOfYear || false,
             ...config
         });
-    }
-
-    getTextX(contentBounds) {
-        if (this.config.textAlign === 'left') return contentBounds.x;
-        if (this.config.textAlign === 'right') return contentBounds.x + contentBounds.width;
-        return contentBounds.x + contentBounds.width / 2;
     }
 
     render(ctx, bounds) {
@@ -354,6 +279,9 @@ class DateComponent extends ComponentBase {
 }
 
 class StatsComponent extends ComponentBase {
+    // Data this component needs injected (see enrichLayoutWithData)
+    static dataNeeds = [];
+
     constructor(config = {}) {
         super('stats', {
             fontSize: 16,
@@ -416,6 +344,9 @@ class StatsComponent extends ComponentBase {
 }
 
 class DeviceStatsComponent extends ComponentBase {
+    // Data this component needs injected (see enrichLayoutWithData)
+    static dataNeeds = ['deviceStats'];
+
     constructor(config = {}) {
         super('device-stats', {
             fontSize: 16,
@@ -515,6 +446,9 @@ class DeviceStatsComponent extends ComponentBase {
 }
 
 class QuoteComponent extends ComponentBase {
+    // Data this component needs injected (see enrichLayoutWithData)
+    static dataNeeds = [];
+
     constructor(config = {}) {
         super('quote', {
             fontSize: 13,
@@ -525,28 +459,11 @@ class QuoteComponent extends ComponentBase {
         });
     }
 
-    getQuote() {
-        // Load quotes from external JSON file
-        const quotesPath = path.join(__dirname, 'quotes.json');
-        let quotes;
-        try {
-            quotes = JSON.parse(fs.readFileSync(quotesPath, 'utf8'));
-        } catch (error) {
-            return { text: "Add quotes to server/quotes.json", author: "", source: "" };
-        }
-
-        // Use day of year as seed so quote changes daily but is stable within the day
-        const now = new Date();
-        const start = new Date(now.getFullYear(), 0, 0);
-        const dayOfYear = Math.floor((now - start) / (1000 * 60 * 60 * 24));
-        return quotes[dayOfYear % quotes.length];
-    }
-
     render(ctx, bounds) {
         this.drawContainer(ctx, bounds);
         const contentBounds = this.getContentBounds(bounds);
 
-        const quote = this.getQuote();
+        const quote = getDailyQuote();
         const originalSize = this.config.fontSize;
         const lineHeight = originalSize * 1.4;
 
@@ -556,26 +473,15 @@ class QuoteComponent extends ComponentBase {
 
         // Quote text (italic)
         ctx.font = `${this.config.fontWeight} italic ${originalSize}px ${this.config.fontFamily}`;
-        const words = quote.text.split(' ');
-        const lines = [];
-        let currentLine = '';
-
-        for (const word of words) {
-            const testLine = currentLine ? `${currentLine} ${word}` : word;
-            if (ctx.measureText(testLine).width > contentBounds.width) {
-                lines.push(currentLine);
-                currentLine = word;
-            } else {
-                currentLine = testLine;
-            }
-        }
-        if (currentLine) lines.push(currentLine);
+        const lines = wrapText(ctx, quote.text, contentBounds.width);
 
         let y = contentBounds.y;
-        for (const line of lines) {
-            ctx.fillText(`${lines.indexOf(line) === 0 ? '"' : ''}${line}${lines.indexOf(line) === lines.length - 1 ? '"' : ''}`, contentBounds.x, y);
+        lines.forEach((line, i) => {
+            const prefix = i === 0 ? '"' : '';
+            const suffix = i === lines.length - 1 ? '"' : '';
+            ctx.fillText(`${prefix}${line}${suffix}`, contentBounds.x, y);
             y += lineHeight;
-        }
+        });
 
         // Attribution
         ctx.font = `${originalSize * 0.9}px ${this.config.fontFamily}`;
@@ -584,122 +490,10 @@ class QuoteComponent extends ComponentBase {
     }
 }
 
-class WeatherIllustrationComponent extends ComponentBase {
-    constructor(config = {}) {
-        super('weather-illustration', {
-            weatherData: config.weatherData || null,
-            strokeColor: config.strokeColor || '#000000',
-            lineWidth: config.lineWidth || 2,
-            ...config
-        });
-    }
-
-    render(ctx, bounds) {
-        this.drawContainer(ctx, bounds);
-        const contentBounds = this.getContentBounds(bounds);
-        const cx = contentBounds.x + contentBounds.width / 2;
-        const cy = contentBounds.y + contentBounds.height / 2;
-        const size = Math.min(contentBounds.width, contentBounds.height) * 0.4;
-
-        ctx.strokeStyle = this.config.strokeColor;
-        ctx.fillStyle = this.config.strokeColor;
-        ctx.lineWidth = this.config.lineWidth;
-        ctx.lineCap = 'round';
-
-        const icon = (this.config.weatherData && this.config.weatherData.current)
-            ? this.config.weatherData.current.icon || 'unknown'
-            : 'clear';
-
-        if (icon === 'clear' || icon === 'mostly-clear') {
-            this.drawSun(ctx, cx, cy, size);
-        } else if (icon === 'partly-cloudy') {
-            this.drawSun(ctx, cx - size * 0.3, cy - size * 0.2, size * 0.7);
-            this.drawCloud(ctx, cx + size * 0.2, cy + size * 0.2, size * 0.8);
-        } else if (icon === 'cloudy' || icon === 'fog') {
-            this.drawCloud(ctx, cx, cy - size * 0.15, size);
-            this.drawCloud(ctx, cx - size * 0.4, cy + size * 0.25, size * 0.7);
-        } else if (icon === 'rain' || icon === 'drizzle' || icon === 'showers' || icon === 'heavy-rain' || icon === 'heavy-showers') {
-            this.drawCloud(ctx, cx, cy - size * 0.2, size);
-            this.drawRain(ctx, cx, cy + size * 0.3, size);
-        } else if (icon === 'snow' || icon === 'heavy-snow' || icon === 'snow-showers' || icon === 'freezing-rain' || icon === 'freezing-drizzle') {
-            this.drawCloud(ctx, cx, cy - size * 0.2, size);
-            this.drawSnow(ctx, cx, cy + size * 0.3, size);
-        } else if (icon === 'thunderstorm' || icon === 'thunderstorm-hail') {
-            this.drawCloud(ctx, cx, cy - size * 0.2, size);
-            this.drawLightning(ctx, cx, cy + size * 0.15, size);
-        } else {
-            this.drawSun(ctx, cx, cy, size);
-        }
-    }
-
-    drawSun(ctx, cx, cy, size) {
-        // Circle
-        ctx.beginPath();
-        ctx.arc(cx, cy, size * 0.35, 0, Math.PI * 2);
-        ctx.stroke();
-
-        // Rays
-        for (let i = 0; i < 8; i++) {
-            const angle = (i * Math.PI * 2) / 8;
-            const innerR = size * 0.5;
-            const outerR = size * 0.75;
-            ctx.beginPath();
-            ctx.moveTo(cx + Math.cos(angle) * innerR, cy + Math.sin(angle) * innerR);
-            ctx.lineTo(cx + Math.cos(angle) * outerR, cy + Math.sin(angle) * outerR);
-            ctx.stroke();
-        }
-    }
-
-    drawCloud(ctx, cx, cy, size) {
-        ctx.beginPath();
-        ctx.arc(cx - size * 0.3, cy, size * 0.25, Math.PI, Math.PI * 1.85);
-        ctx.arc(cx - size * 0.05, cy - size * 0.22, size * 0.3, Math.PI * 1.2, Math.PI * 1.9);
-        ctx.arc(cx + size * 0.25, cy - size * 0.1, size * 0.22, Math.PI * 1.3, Math.PI * 0.1);
-        ctx.arc(cx + size * 0.3, cy + size * 0.05, size * 0.18, Math.PI * 1.6, Math.PI * 0.5);
-        ctx.lineTo(cx - size * 0.4, cy + size * 0.15);
-        ctx.arc(cx - size * 0.3, cy, size * 0.25, Math.PI * 0.6, Math.PI);
-        ctx.stroke();
-    }
-
-    drawRain(ctx, cx, cy, size) {
-        const drops = [-0.3, -0.05, 0.2];
-        for (const dx of drops) {
-            ctx.beginPath();
-            ctx.moveTo(cx + size * dx, cy);
-            ctx.lineTo(cx + size * dx - size * 0.08, cy + size * 0.35);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(cx + size * dx + size * 0.15, cy + size * 0.12);
-            ctx.lineTo(cx + size * dx + size * 0.07, cy + size * 0.45);
-            ctx.stroke();
-        }
-    }
-
-    drawSnow(ctx, cx, cy, size) {
-        const flakes = [[-0.25, 0], [0.05, 0.1], [0.3, -0.05], [-0.1, 0.3], [0.2, 0.3]];
-        for (const [dx, dy] of flakes) {
-            const fx = cx + size * dx;
-            const fy = cy + size * dy;
-            const r = size * 0.06;
-            ctx.beginPath();
-            ctx.arc(fx, fy, r, 0, Math.PI * 2);
-            ctx.fill();
-        }
-    }
-
-    drawLightning(ctx, cx, cy, size) {
-        ctx.lineWidth = this.config.lineWidth + 1;
-        ctx.beginPath();
-        ctx.moveTo(cx, cy);
-        ctx.lineTo(cx - size * 0.15, cy + size * 0.25);
-        ctx.lineTo(cx + size * 0.05, cy + size * 0.22);
-        ctx.lineTo(cx - size * 0.08, cy + size * 0.5);
-        ctx.stroke();
-        ctx.lineWidth = this.config.lineWidth;
-    }
-}
-
 class StatusBarComponent extends ComponentBase {
+    // Data this component needs injected (see enrichLayoutWithData)
+    static dataNeeds = ['deviceStats'];
+
     constructor(config = {}) {
         super('status-bar', {
             fontSize: 11,
@@ -726,12 +520,7 @@ class StatusBarComponent extends ComponentBase {
         // Battery with level indicator
         if (ds && ds.battery && ds.battery.level !== 'unknown') {
             const level = parseInt(ds.battery.level);
-            let icon = '█';
-            if (level <= 10) icon = '▁';
-            else if (level <= 25) icon = '▃';
-            else if (level <= 50) icon = '▅';
-            else if (level <= 75) icon = '▇';
-            parts.push(`${icon} ${level}%`);
+            parts.push(`${batteryIcon(level)} ${level}%`);
         }
 
         // WiFi status
@@ -746,7 +535,7 @@ class StatusBarComponent extends ComponentBase {
             hour: 'numeric',
             minute: '2-digit',
             hour12: true,
-            timeZone: 'America/Chicago'
+            timeZone: config.TIMEZONE
         });
         parts.push(`Updated ${timeStr}`);
 
@@ -758,62 +547,10 @@ class StatusBarComponent extends ComponentBase {
     }
 }
 
-class HeroWeatherComponent extends ComponentBase {
-    constructor(config = {}) {
-        super('hero-weather', {
-            fontSize: 120,
-            fontWeight: 'bold',
-            textAlign: 'left',
-            conditionSize: config.conditionSize || 0.2,
-            weatherData: config.weatherData || null,
-            ...config
-        });
-    }
-
-    getWeatherSymbol(iconType) {
-        const symbols = {
-            'clear': '☀', 'mostly-clear': '☀', 'partly-cloudy': '☁',
-            'cloudy': '☁', 'fog': '☁', 'drizzle': '☂', 'rain': '☂',
-            'heavy-rain': '☂', 'snow': '❄', 'heavy-snow': '❄',
-            'freezing-rain': '❄', 'freezing-drizzle': '❄',
-            'showers': '☂', 'heavy-showers': '☂', 'snow-showers': '❄',
-            'thunderstorm': '⚡', 'thunderstorm-hail': '⚡', 'unknown': '?'
-        };
-        return symbols[iconType] || '?';
-    }
-
-    render(ctx, bounds) {
-        this.drawContainer(ctx, bounds);
-        const contentBounds = this.getContentBounds(bounds);
-
-        if (!this.config.weatherData || !this.config.weatherData.current) {
-            this.setTextStyle(ctx);
-            ctx.fillText('--°', contentBounds.x, contentBounds.y);
-            return;
-        }
-
-        const current = this.config.weatherData.current;
-
-        // Hero temperature
-        ctx.fillStyle = this.config.textColor;
-        ctx.font = `${this.config.fontWeight} ${this.config.fontSize}px ${this.config.fontFamily}`;
-        ctx.textAlign = this.config.textAlign;
-        ctx.textBaseline = 'top';
-
-        const tempText = current.temperature || '--°';
-        ctx.fillText(tempText, contentBounds.x, contentBounds.y);
-
-        // Condition + symbol below
-        const condSize = Math.round(this.config.fontSize * this.config.conditionSize);
-        ctx.font = `normal ${condSize}px ${this.config.fontFamily}`;
-        ctx.fillStyle = this.config.textColor;
-        const symbol = this.getWeatherSymbol(current.icon);
-        const condY = contentBounds.y + this.config.fontSize + 4;
-        ctx.fillText(`${symbol} ${current.condition}`, contentBounds.x, condY);
-    }
-}
-
 class WeatherComponent extends ComponentBase {
+    // Data this component needs injected (see enrichLayoutWithData)
+    static dataNeeds = ['weather'];
+
     constructor(config = {}) {
         super('weather', {
             fontSize: 16,
@@ -831,33 +568,8 @@ class WeatherComponent extends ComponentBase {
         });
     }
 
-    /**
-     * Get weather symbol for e-ink display (text-based icons)
-     */
     getWeatherSymbol(iconType) {
-        // Basic Unicode symbols (no emoji) - renders on all canvas implementations
-        const symbols = {
-            'clear': '☀',
-            'mostly-clear': '☀',
-            'partly-cloudy': '☁',
-            'cloudy': '☁',
-            'fog': '☁',
-            'drizzle': '☂',
-            'freezing-drizzle': '❄',
-            'rain': '☂',
-            'heavy-rain': '☂',
-            'freezing-rain': '❄',
-            'snow': '❄',
-            'heavy-snow': '❄',
-            'showers': '☂',
-            'heavy-showers': '☂',
-            'snow-showers': '❄',
-            'thunderstorm': '⚡',
-            'thunderstorm-hail': '⚡',
-            'unknown': '?'
-        };
-
-        return symbols[iconType] || symbols['unknown'];
+        return getWeatherSymbol(iconType);
     }
 
     render(ctx, bounds) {
@@ -967,11 +679,7 @@ class WeatherComponent extends ComponentBase {
 
                     // Condition
                     ctx.font = `${this.config.fontWeight} ${Math.round(originalSize * forecastSize * 0.85)}px ${this.config.fontFamily}`;
-                    let condition = day.condition;
-                    while (ctx.measureText(condition).width > colWidth && condition.length > 3) {
-                        condition = condition.slice(0, -4) + '...';
-                    }
-                    ctx.fillText(condition, colX, colY);
+                    ctx.fillText(truncateText(ctx, day.condition, colWidth), colX, colY);
                 }
             } else {
                 // Vertical list layout (original)
@@ -1004,6 +712,9 @@ class WeatherComponent extends ComponentBase {
 }
 
 class TitleComponent extends ComponentBase {
+    // Data this component needs injected (see enrichLayoutWithData)
+    static dataNeeds = [];
+
     constructor(config = {}) {
         super('title', {
             fontSize: 32,
@@ -1027,6 +738,9 @@ class TitleComponent extends ComponentBase {
 }
 
 class PokemonSpriteComponent extends ComponentBase {
+    // Data this component needs injected (see enrichLayoutWithData)
+    static dataNeeds = ['pokemon'];
+
     constructor(config = {}) {
         super('pokemon-sprite', {
             fontSize: 14,
@@ -1116,6 +830,9 @@ class PokemonSpriteComponent extends ComponentBase {
 }
 
 class CalendarComponent extends ComponentBase {
+    // Data this component needs injected (see enrichLayoutWithData)
+    static dataNeeds = ['calendar'];
+
     constructor(config = {}) {
         super('calendar', {
             fontSize: 13,
@@ -1208,322 +925,17 @@ class CalendarComponent extends ComponentBase {
 
         // Event name below (normal, truncated if needed)
         ctx.font = `${this.config.fontWeight} ${fontSize}px ${this.config.fontFamily}`;
-        let name = event.name;
-        while (ctx.measureText(name).width > availableWidth && name.length > 3) {
-            name = name.slice(0, -4) + '...';
-        }
-        ctx.fillText(name, x, y);
+        ctx.fillText(truncateText(ctx, event.name, availableWidth), x, y);
         y += lineHeight * 1.1;
 
         return y;
     }
 }
 
-class WatchFaceComponent extends ComponentBase {
-    constructor(config = {}) {
-        super('watch-face', {
-            weatherData: config.weatherData || null,
-            calendarData: config.calendarData || null,
-            ...config
-        });
-    }
-
-    render(ctx, bounds) {
-        this.drawContainer(ctx, bounds);
-        const cb = this.getContentBounds(bounds);
-        const cx = cb.x + cb.width / 2;
-        const cy = cb.y + cb.height * 0.42;
-        const radius = Math.min(cb.width, cb.height * 0.75) / 2;
-
-        // Outer ring — thin elegant
-        ctx.strokeStyle = '#000000';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-        ctx.stroke();
-
-        // Inner ring
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.arc(cx, cy, radius - 8, 0, Math.PI * 2);
-        ctx.stroke();
-
-        // Hour dots
-        for (let i = 0; i < 12; i++) {
-            const angle = (i * Math.PI * 2) / 12 - Math.PI / 2;
-            const dotR = radius - 4;
-            const dotSize = i % 3 === 0 ? 5 : 2;
-            ctx.fillStyle = '#000000';
-            ctx.beginPath();
-            ctx.arc(cx + Math.cos(angle) * dotR, cy + Math.sin(angle) * dotR, dotSize, 0, Math.PI * 2);
-            ctx.fill();
-        }
-
-        // Hands
-        const now = roundTimeToNearest(new Date(), 15);
-        const hours = now.getHours() % 12;
-        const minutes = now.getMinutes();
-
-        // Hour hand
-        const hourAngle = ((hours + minutes / 60) * Math.PI * 2) / 12 - Math.PI / 2;
-        ctx.strokeStyle = '#000000';
-        ctx.lineWidth = 6;
-        ctx.lineCap = 'round';
-        ctx.beginPath();
-        ctx.moveTo(cx, cy);
-        ctx.lineTo(cx + Math.cos(hourAngle) * radius * 0.45, cy + Math.sin(hourAngle) * radius * 0.45);
-        ctx.stroke();
-
-        // Minute hand
-        const minuteAngle = (minutes * Math.PI * 2) / 60 - Math.PI / 2;
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.moveTo(cx, cy);
-        ctx.lineTo(cx + Math.cos(minuteAngle) * radius * 0.7, cy + Math.sin(minuteAngle) * radius * 0.7);
-        ctx.stroke();
-
-        // Center
-        ctx.fillStyle = '#000000';
-        ctx.beginPath();
-        ctx.arc(cx, cy, 5, 0, Math.PI * 2);
-        ctx.fill();
-
-        // --- COMPLICATIONS ---
-        ctx.textBaseline = 'middle';
-        ctx.textAlign = 'center';
-
-        // 12 o'clock complication: Date
-        ctx.font = 'bold 14px sans-serif';
-        ctx.fillStyle = '#000000';
-        ctx.fillText(format(now, 'EEE').toUpperCase(), cx, cy - radius * 0.55);
-        ctx.font = 'bold 22px sans-serif';
-        ctx.fillText(format(now, 'd'), cx, cy - radius * 0.38);
-
-        // 3 o'clock complication: Temperature
-        if (this.config.weatherData && this.config.weatherData.current) {
-            const temp = this.config.weatherData.current.temperature || '--°';
-            ctx.font = 'bold 18px sans-serif';
-            ctx.fillText(temp, cx + radius * 0.48, cy);
-        }
-
-        // 9 o'clock complication: Condition
-        if (this.config.weatherData && this.config.weatherData.current) {
-            const cond = this.config.weatherData.current.condition || '';
-            const short = cond.length > 8 ? cond.slice(0, 7) + '.' : cond;
-            ctx.font = '13px sans-serif';
-            ctx.fillText(short, cx - radius * 0.48, cy);
-        }
-
-        // Below the clock face: Calendar
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'top';
-        const calY = cy + radius + 20;
-        const calX = cb.x + 10;
-
-        if (this.config.calendarData) {
-            const cal = this.config.calendarData;
-            ctx.font = 'bold 13px sans-serif';
-            ctx.fillStyle = '#000000';
-            ctx.fillText('TODAY', calX, calY);
-            ctx.fillText('TOMORROW', calX + cb.width / 2, calY);
-
-            ctx.font = '12px sans-serif';
-            let ty = calY + 20;
-            const events = cal.today || [];
-            for (let i = 0; i < Math.min(3, events.length); i++) {
-                ctx.font = 'bold 12px sans-serif';
-                ctx.fillText(events[i].time, calX, ty);
-                ty += 15;
-                ctx.font = '12px sans-serif';
-                let name = events[i].name;
-                if (ctx.measureText(name).width > cb.width / 2 - 20) {
-                    while (ctx.measureText(name + '...').width > cb.width / 2 - 20 && name.length > 3) name = name.slice(0, -1);
-                    name += '...';
-                }
-                ctx.fillText(name, calX, ty);
-                ty += 18;
-            }
-
-            let ty2 = calY + 20;
-            const tmrw = cal.tomorrow || [];
-            for (let i = 0; i < Math.min(3, tmrw.length); i++) {
-                ctx.font = 'bold 12px sans-serif';
-                ctx.fillText(tmrw[i].time, calX + cb.width / 2, ty2);
-                ty2 += 15;
-                ctx.font = '12px sans-serif';
-                let name = tmrw[i].name;
-                if (ctx.measureText(name).width > cb.width / 2 - 20) {
-                    while (ctx.measureText(name + '...').width > cb.width / 2 - 20 && name.length > 3) name = name.slice(0, -1);
-                    name += '...';
-                }
-                ctx.fillText(name, calX + cb.width / 2, ty2);
-                ty2 += 18;
-            }
-        }
-    }
-}
-
-class BrutalistComponent extends ComponentBase {
-    constructor(config = {}) {
-        super('brutalist', {
-            weatherData: config.weatherData || null,
-            calendarData: config.calendarData || null,
-            pokemonData: config.pokemonData || null,
-            ...config
-        });
-    }
-
-    async render(ctx, bounds) {
-        const cb = this.getContentBounds(bounds);
-        const width = cb.width;
-        const height = cb.height;
-
-        // Background
-        ctx.fillStyle = '#FFFFFF';
-        ctx.fillRect(cb.x, cb.y, width, height);
-
-        const temp = (this.config.weatherData && this.config.weatherData.current)
-            ? this.config.weatherData.current.temperature || '--°'
-            : '--°';
-
-        // MASSIVE temperature — 350px, intentionally bleeds
-        ctx.fillStyle = '#000000';
-        ctx.font = 'bold 350px sans-serif';
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'top';
-        ctx.fillText(temp, cb.x - 15, cb.y - 60);
-
-        // Thin line separator
-        const lineY = cb.y + 310;
-        ctx.strokeStyle = '#000000';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(cb.x, lineY);
-        ctx.lineTo(cb.x + width, lineY);
-        ctx.stroke();
-
-        // Condition — small, uppercase, tracked
-        if (this.config.weatherData && this.config.weatherData.current) {
-            ctx.font = '16px sans-serif';
-            ctx.fillStyle = '#000000';
-            ctx.textAlign = 'left';
-            ctx.textBaseline = 'top';
-            const condText = (this.config.weatherData.current.condition || '').toUpperCase();
-            ctx.fillText(condText, cb.x, lineY + 8);
-        }
-
-        // Date + time — right-aligned, small
-        const now = roundTimeToNearest(new Date(), 15);
-        ctx.font = 'bold 16px sans-serif';
-        ctx.textAlign = 'right';
-        ctx.fillText(format(now, 'EEEE, MMMM do').toUpperCase(), cb.x + width, lineY + 8);
-        ctx.font = '14px sans-serif';
-        ctx.fillText(format(now, 'h:mm a'), cb.x + width, lineY + 28);
-
-        // Forecast in a row
-        const foreY = lineY + 55;
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(cb.x, foreY - 5);
-        ctx.lineTo(cb.x + width, foreY - 5);
-        ctx.stroke();
-
-        if (this.config.weatherData && this.config.weatherData.forecast) {
-            const forecast = this.config.weatherData.forecast;
-            ctx.textAlign = 'left';
-            const colW = width / 3;
-            for (let i = 0; i < Math.min(3, forecast.length); i++) {
-                const fx = cb.x + i * colW;
-                ctx.font = 'bold 14px sans-serif';
-                ctx.fillText(forecast[i].date.split(',')[0], fx, foreY);
-                ctx.font = '13px sans-serif';
-                ctx.fillText(`${forecast[i].highTemp}/${forecast[i].lowTemp}`, fx, foreY + 18);
-                let cond = forecast[i].condition;
-                if (ctx.measureText(cond).width > colW - 10) {
-                    while (ctx.measureText(cond + '...').width > colW - 10 && cond.length > 3) cond = cond.slice(0, -1);
-                    cond += '...';
-                }
-                ctx.fillText(cond, fx, foreY + 34);
-            }
-        }
-
-        // Calendar section
-        const calY = foreY + 65;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(cb.x, calY - 8);
-        ctx.lineTo(cb.x + width, calY - 8);
-        ctx.stroke();
-
-        if (this.config.calendarData) {
-            const cal = this.config.calendarData;
-            const halfW = width / 2;
-
-            ctx.font = 'bold 14px sans-serif';
-            ctx.textAlign = 'left';
-            ctx.fillText('TODAY', cb.x, calY);
-            ctx.fillText('TOMORROW', cb.x + halfW, calY);
-
-            ctx.font = '13px sans-serif';
-            let ty = calY + 22;
-            for (let i = 0; i < Math.min(4, (cal.today || []).length); i++) {
-                const e = cal.today[i];
-                ctx.font = 'bold 13px sans-serif';
-                ctx.fillText(e.time, cb.x, ty);
-                ty += 16;
-                ctx.font = '13px sans-serif';
-                let name = e.name;
-                if (ctx.measureText(name).width > halfW - 10) {
-                    while (ctx.measureText(name + '...').width > halfW - 10 && name.length > 3) name = name.slice(0, -1);
-                    name += '...';
-                }
-                ctx.fillText(name, cb.x, ty);
-                ty += 20;
-            }
-
-            let ty2 = calY + 22;
-            for (let i = 0; i < Math.min(4, (cal.tomorrow || []).length); i++) {
-                const e = cal.tomorrow[i];
-                ctx.font = 'bold 13px sans-serif';
-                ctx.fillText(e.time, cb.x + halfW, ty2);
-                ty2 += 16;
-                ctx.font = '13px sans-serif';
-                let name = e.name;
-                if (ctx.measureText(name).width > halfW - 10) {
-                    while (ctx.measureText(name + '...').width > halfW - 10 && name.length > 3) name = name.slice(0, -1);
-                    name += '...';
-                }
-                ctx.fillText(name, cb.x + halfW, ty2);
-                ty2 += 20;
-            }
-        }
-
-        // Pokemon sprite bottom-right
-        if (this.config.pokemonData && this.config.pokemonData.spritePath) {
-            try {
-                const image = await loadImage(this.config.pokemonData.spritePath);
-                const spriteSize = 80;
-                ctx.drawImage(image, cb.x + width - spriteSize - 5, cb.y + height - spriteSize - 30, spriteSize, spriteSize);
-            } catch (e) { /* skip */ }
-        }
-
-        // Quote at very bottom
-        ctx.font = 'italic 12px sans-serif';
-        ctx.fillStyle = '#888888';
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'bottom';
-        // Load quote
-        try {
-            const quotesPath = require('path').join(__dirname, 'quotes.json');
-            const quotes = JSON.parse(require('fs').readFileSync(quotesPath, 'utf8'));
-            const dayOfYear = Math.floor((now - new Date(now.getFullYear(), 0, 0)) / (1000 * 60 * 60 * 24));
-            const q = quotes[dayOfYear % quotes.length];
-            ctx.fillText(`"${q.text}" — ${q.author}`, cb.x, cb.y + height - 5);
-        } catch (e) { /* skip */ }
-    }
-}
-
 class SwissPosterComponent extends ComponentBase {
+    // Data this component needs injected (see enrichLayoutWithData)
+    static dataNeeds = ['weather', 'calendar', 'pokemon', 'deviceStats'];
+
     constructor(config = {}) {
         super('swiss-poster', {
             weatherData: config.weatherData || null,
@@ -1531,41 +943,6 @@ class SwissPosterComponent extends ComponentBase {
             pokemonData: config.pokemonData || null,
             ...config
         });
-    }
-
-    getWeatherSymbol(iconType) {
-        const symbols = {
-            'clear': '☀', 'mostly-clear': '☀', 'partly-cloudy': '☁',
-            'cloudy': '☁', 'fog': '☁', 'drizzle': '☂', 'rain': '☂',
-            'heavy-rain': '☂', 'snow': '❄', 'heavy-snow': '❄',
-            'freezing-rain': '❄', 'freezing-drizzle': '❄',
-            'showers': '☂', 'heavy-showers': '☂', 'snow-showers': '❄',
-            'thunderstorm': '⚡', 'thunderstorm-hail': '⚡', 'unknown': '?'
-        };
-        return symbols[iconType] || '?';
-    }
-
-    wrapText(ctx, text, maxWidth) {
-        const words = text.split(' ');
-        const lines = [];
-        let currentLine = '';
-        for (const word of words) {
-            const testLine = currentLine ? `${currentLine} ${word}` : word;
-            if (ctx.measureText(testLine).width > maxWidth && currentLine) {
-                lines.push(currentLine);
-                currentLine = word;
-            } else {
-                currentLine = testLine;
-            }
-        }
-        if (currentLine) lines.push(currentLine);
-        return lines;
-    }
-
-    truncate(ctx, text, maxWidth) {
-        if (ctx.measureText(text).width <= maxWidth) return text;
-        while (ctx.measureText(text + '...').width > maxWidth && text.length > 3) text = text.slice(0, -1);
-        return text + '...';
     }
 
     async render(ctx, bounds) {
@@ -1585,7 +962,7 @@ class SwissPosterComponent extends ComponentBase {
         ctx.fillStyle = '#000000';
         ctx.fillRect(x, y, w, 6);
 
-        // Time — left-aligned with AM/PM inline (rounded to nearest 5 min)
+        // Time — left-aligned with AM/PM inline (rounded to the 15-min boundary)
         ctx.font = 'bold 72px sans-serif';
         ctx.fillStyle = '#000000';
         ctx.textAlign = 'left';
@@ -1653,7 +1030,7 @@ class SwissPosterComponent extends ComponentBase {
                     ctx.fillStyle = '#000000';
                     ctx.fillRect(fx, fy - 2, 1, 62);
                 }
-                const symbol = forecast[i].icon ? this.getWeatherSymbol(forecast[i].icon) : '';
+                const symbol = forecast[i].icon ? getWeatherSymbol(forecast[i].icon) : '';
                 ctx.font = 'bold 15px sans-serif';
                 ctx.fillStyle = '#000000';
                 ctx.textAlign = 'left';
@@ -1661,7 +1038,7 @@ class SwissPosterComponent extends ComponentBase {
                 ctx.font = '15px sans-serif';
                 ctx.fillText(`${forecast[i].highTemp}/${forecast[i].lowTemp} ${symbol}`, fx + pad, fy + 20);
                 ctx.font = '13px sans-serif';
-                ctx.fillText(this.truncate(ctx, forecast[i].condition, colW - pad - 8), fx + pad, fy + 40);
+                ctx.fillText(truncateText(ctx, forecast[i].condition, colW - pad - 8), fx + pad, fy + 40);
             }
         }
 
@@ -1695,7 +1072,7 @@ class SwissPosterComponent extends ComponentBase {
                 ctx.fillText(e.time, x, ty);
                 ty += 17;
                 ctx.font = '13px sans-serif';
-                ctx.fillText(this.truncate(ctx, e.name, halfW - 15), x, ty);
+                ctx.fillText(truncateText(ctx, e.name, halfW - 15), x, ty);
                 ty += 19;
             }
 
@@ -1706,7 +1083,7 @@ class SwissPosterComponent extends ComponentBase {
                 ctx.fillText(e.time, x + halfW + 10, ty2);
                 ty2 += 17;
                 ctx.font = '13px sans-serif';
-                ctx.fillText(this.truncate(ctx, e.name, halfW - 15), x + halfW + 10, ty2);
+                ctx.fillText(truncateText(ctx, e.name, halfW - 15), x + halfW + 10, ty2);
                 ty2 += 19;
             }
         }
@@ -1718,18 +1095,15 @@ class SwissPosterComponent extends ComponentBase {
         ctx.fillStyle = '#000000';
         ctx.fillRect(x, calEnd, w, 1);
 
-        try {
-            const quotesPath = require('path').join(__dirname, 'quotes.json');
-            const quotes = JSON.parse(require('fs').readFileSync(quotesPath, 'utf8'));
-            const dayOfYear = Math.floor((now - new Date(now.getFullYear(), 0, 0)) / (1000 * 60 * 60 * 24));
-            const q = quotes[dayOfYear % quotes.length];
+        {
+            const q = getDailyQuote(now);
 
             ctx.font = 'italic 14px sans-serif';
             ctx.fillStyle = '#555555';
             ctx.textAlign = 'left';
             ctx.textBaseline = 'top';
 
-            const quoteLines = this.wrapText(ctx, `"${q.text}"`, w);
+            const quoteLines = wrapText(ctx, `"${q.text}"`, w);
             let qy = calEnd + 10;
             for (const line of quoteLines.slice(0, 3)) {
                 ctx.fillText(line, x, qy);
@@ -1738,7 +1112,7 @@ class SwissPosterComponent extends ComponentBase {
             ctx.font = '13px sans-serif';
             const attr = q.source ? `— ${q.author}, ${q.source}` : `— ${q.author}`;
             ctx.fillText(attr, x, qy);
-        } catch (e) { /* skip */ }
+        }
 
         // Pokemon sprite — large, in bottom whitespace, with name & number
         if (this.config.pokemonData && this.config.pokemonData.spritePath) {
@@ -1775,18 +1149,86 @@ class SwissPosterComponent extends ComponentBase {
         const statusParts = [];
         if (this.config.deviceStats && this.config.deviceStats.battery && this.config.deviceStats.battery.level !== 'unknown') {
             const level = parseInt(this.config.deviceStats.battery.level);
-            let icon = '█';
-            if (level <= 10) icon = '▁';
-            else if (level <= 25) icon = '▃';
-            else if (level <= 50) icon = '▅';
-            else if (level <= 75) icon = '▇';
-            statusParts.push(`${icon} ${level}%`);
+            statusParts.push(`${batteryIcon(level)} ${level}%`);
         }
         statusParts.push(`Updated ${format(nowRaw, 'h:mm a')}`);
 
         ctx.textAlign = 'center';
         ctx.fillText(statusParts.join('  ·  '), x + w / 2, y + h - 14);
     }
+}
+
+/**
+ * Component registry — the single place a component type is wired up.
+ * To add a component: write the class (with `static dataNeeds`), add one
+ * entry here, and reference the type from a layout JSON. Enrichment and
+ * data-service selection derive everything else from this table.
+ */
+const COMPONENT_REGISTRY = {
+    'clock': ClockComponent,
+    'date': DateComponent,
+    'stats': StatsComponent,
+    'device-stats': DeviceStatsComponent,
+    'weather': WeatherComponent,
+    'title': TitleComponent,
+    'pokemon-sprite': PokemonSpriteComponent,
+    'calendar': CalendarComponent,
+    'swiss-poster': SwissPosterComponent,
+    'status-bar': StatusBarComponent,
+    'quote': QuoteComponent
+};
+
+// Data need → the config key components receive it under
+const DATA_CONFIG_KEYS = {
+    weather: 'weatherData',
+    pokemon: 'pokemonData',
+    calendar: 'calendarData',
+    deviceStats: 'deviceStats'
+};
+
+/**
+ * Union of data needs declared by the components a layout uses.
+ * Returns a Set of need names ('weather', 'pokemon', 'calendar', 'deviceStats').
+ */
+function getLayoutDataNeeds(layoutConfig) {
+    const needs = new Set();
+    for (const item of layoutConfig.components || []) {
+        const ComponentClass = COMPONENT_REGISTRY[item.type];
+        if (!ComponentClass) continue;
+        for (const need of ComponentClass.dataNeeds || []) {
+            needs.add(need);
+        }
+    }
+    return needs;
+}
+
+/**
+ * Inject fetched data into each component's config according to its declared
+ * dataNeeds. `data` is keyed by need name: { weather, pokemon, calendar, deviceStats }.
+ * The single implementation shared by the HTTP server and the CLI generator.
+ */
+function enrichLayoutWithData(layoutConfig, data = {}) {
+    const enrichedConfig = JSON.parse(JSON.stringify(layoutConfig));
+
+    enrichedConfig.components = enrichedConfig.components.map(component => {
+        const ComponentClass = COMPONENT_REGISTRY[component.type];
+        const needs = (ComponentClass && ComponentClass.dataNeeds) || [];
+        if (needs.length === 0) return component;
+
+        const injected = {};
+        for (const need of needs) {
+            if (data[need] !== undefined && data[need] !== null) {
+                injected[DATA_CONFIG_KEYS[need]] = data[need];
+            }
+        }
+
+        return {
+            ...component,
+            config: { ...component.config, ...injected }
+        };
+    });
+
+    return enrichedConfig;
 }
 
 class DashboardEngine {
@@ -1798,27 +1240,10 @@ class DashboardEngine {
         // Initialize grid system
         this.grid = new GridSystem(this.width, this.height, config.grid);
 
-        // Component registry
-        this.components = new Map();
+        // Per-instance component map, seeded from the registry;
+        // registerComponent() allows instance-local additions/overrides.
+        this.components = new Map(Object.entries(COMPONENT_REGISTRY));
         this.layout = [];
-
-        // Register built-in components
-        this.registerComponent('clock', ClockComponent);
-        this.registerComponent('analog-clock', AnalogClockComponent);
-        this.registerComponent('date', DateComponent);
-        this.registerComponent('stats', StatsComponent);
-        this.registerComponent('device-stats', DeviceStatsComponent);
-        this.registerComponent('weather', WeatherComponent);
-        this.registerComponent('hero-weather', HeroWeatherComponent);
-        this.registerComponent('title', TitleComponent);
-        this.registerComponent('pokemon-sprite', PokemonSpriteComponent);
-        this.registerComponent('calendar', CalendarComponent);
-        this.registerComponent('weather-illustration', WeatherIllustrationComponent);
-        this.registerComponent('watch-face', WatchFaceComponent);
-        this.registerComponent('brutalist', BrutalistComponent);
-        this.registerComponent('swiss-poster', SwissPosterComponent);
-        this.registerComponent('status-bar', StatusBarComponent);
-        this.registerComponent('quote', QuoteComponent);
     }
 
     /**
@@ -1940,11 +1365,18 @@ module.exports = {
     DashboardEngine,
     GridSystem,
     ComponentBase,
+    COMPONENT_REGISTRY,
+    getLayoutDataNeeds,
+    enrichLayoutWithData,
     ClockComponent,
-    AnalogClockComponent,
     DateComponent,
     StatsComponent,
+    DeviceStatsComponent,
+    WeatherComponent,
     TitleComponent,
     PokemonSpriteComponent,
-    CalendarComponent
+    CalendarComponent,
+    SwissPosterComponent,
+    StatusBarComponent,
+    QuoteComponent
 };

@@ -8,6 +8,7 @@ const util = require('util');
 
 const execPromise = util.promisify(exec);
 const PokemonSelector = require('./pokemon-selector');
+const config = require('./config');
 
 /**
  * Pokemon Sprite Service Module
@@ -25,14 +26,13 @@ class PokemonService {
         this.maxPokemonId = options.maxPokemonId || 1025; // All Pokemon
         this.spriteType = options.spriteType || 'pixel'; // 'pixel' for retro sprites, 'artwork' for high-res
         this.optimizerScript = options.optimizerScript || path.join(__dirname, 'optimize-sprite-for-eink.py');
-        const venvPython = path.join(__dirname, '..', 'test_env', 'bin', 'python3');
-        this.pythonPath = options.pythonPath || (fs.existsSync(venvPython) ? venvPython : '/usr/bin/python3');
+        this.pythonPath = options.pythonPath || config.PYTHON_BIN;
 
         // Initialize contextual selector
         this.selector = new PokemonSelector({
             dataFile: options.dataFile || path.join(__dirname, 'pokemon-data.json'),
             historyFile: options.historyFile || path.join(__dirname, '..', 'cache', 'pokemon-history.json'),
-            timezone: options.timezone || 'America/Chicago'
+            timezone: options.timezone || config.TIMEZONE
         });
 
         // Ensure cache directory exists
@@ -149,7 +149,8 @@ class PokemonService {
      */
     async optimizeForEink(rawPath, outputPath) {
         // Check if Python environment and optimizer exist
-        if (!fs.existsSync(this.pythonPath)) {
+        // (skip the check for bare commands like 'python3' — resolved via PATH)
+        if (path.isAbsolute(this.pythonPath) && !fs.existsSync(this.pythonPath)) {
             throw new Error(`Python not found at ${this.pythonPath}`);
         }
         if (!fs.existsSync(this.optimizerScript)) {
