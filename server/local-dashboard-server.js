@@ -5,6 +5,7 @@ const { URL } = require('url');
 const config = require('./config');
 const { generateDashboard, optimizeForEink, createServices } = require('./generate');
 const { sendDiscordNotification } = require('./notify');
+const { BatteryAlertState } = require('./battery-alert');
 
 /**
  * Local HTTP Server for Kindle Dashboard
@@ -22,7 +23,7 @@ class LocalDashboardServer {
         this.layout = options.layout || config.DEFAULT_LAYOUT;
 
         this.imageCache = new Map();
-        this.lastBatteryNotificationLevel = null; // last 5%-bucket we notified at
+        this.batteryAlerts = new BatteryAlertState();
         this.discordWebhookUrl = config.DISCORD_WEBHOOK_URL;
 
         // Long-lived services so weather/calendar caches persist across requests
@@ -36,22 +37,13 @@ class LocalDashboardServer {
 
     checkBatteryAndNotify(batteryLevel, chargingStatus) {
         if (!this.discordWebhookUrl) return;
-        if (batteryLevel === null || batteryLevel === undefined) return;
 
-        const level = parseInt(batteryLevel);
-        if (isNaN(level) || level > 15) return;
+        // Bucketing, charging skip, and re-arm-on-recharge live in
+        // BatteryAlertState so they can be tested without the render deps.
+        const decision = this.batteryAlerts.evaluate(batteryLevel, chargingStatus);
+        if (!decision.notify) return;
 
-        // Skip when actively charging (lipc-get-prop isCharging returns "1")
-        if (chargingStatus === '1') return;
-
-        // Only ping once per 5% bucket (15, 10, 5) as level drops
-        const bucket = Math.floor(level / 5) * 5;
-        if (this.lastBatteryNotificationLevel !== null && bucket >= this.lastBatteryNotificationLevel) return;
-
-        this.lastBatteryNotificationLevel = bucket;
-
-        const critical = level <= 5;
-        const severity = critical ? 'Critical' : 'Low';
+        const { level, critical, severity } = decision;
         const color = critical ? 0xED4245 : 0xFEE75C; // red or yellow
 
         this.log(`Battery ${severity.toLowerCase()}: ${level}% — sending Discord notification`, 'WARN');
