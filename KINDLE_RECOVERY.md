@@ -131,7 +131,8 @@ cd /path/to/e_ink_screen        # repo root, on main (or the PR branch)
 
 `deploy-kindle.sh --restart` runs `stop.sh` then `start.sh` on the device,
 which: stops the framework, clears the screen, sets `preventScreenSaver 1`,
-enables WiFi keep-alive (`keepAliveWirelessRadio 1` + `iwconfig power off`),
+disables WiFi power management (`iwconfig <if> power off` — the
+`keepAliveWirelessRadio` attempt is a no-op on Touch, see the caveat above),
 and launches `dashboard-loop.sh`. The library view should be replaced by
 the dashboard within ~1 minute.
 
