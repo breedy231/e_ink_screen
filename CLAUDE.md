@@ -18,10 +18,15 @@ codebase review that shaped the current structure.
 │  └─ on-boot.sh       │                                         │  kindle-dashboard        │
 │     └─ start.sh      │                                         │  └─ local-dashboard-     │
 │        └─ dashboard-loop.sh  (15 min, 7am-10pm CT)             │     server.js            │
-│           └─ fetch-dashboard.sh → eips                         │  kindle-dashboard-updater│
-└──────────────────────┘                                         │  (git pull + restart)    │
-                                                                 └──────────────────────────┘
+│           └─ fetch-dashboard.sh → eips                         │  (~/dashboard-server)    │
+└──────────────────────┘                                         └──────────────────────────┘
 ```
+
+Deploys are manual: `./deploy-to-pi.sh` rsyncs `server/` to `~/dashboard-server/server`
+on the Pi and restarts the systemd unit. There is no git checkout or auto-deploy
+timer running in production — `pi/setup-auto-deploy.sh` can set one up
+(`kindle-dashboard-updater.timer`, git-pull based) but it has never been applied
+to this Pi (verified 2026-08-07).
 
 - **Kindle side** (`kindle/`): POSIX shell scripts. `on-boot.sh` (launched by
   the upstart job `/etc/upstart/dashboard.conf`) delegates to `start.sh`,
@@ -180,13 +185,18 @@ white), no gradients. The server's `optimize-for-eink.py` pass
   PubkeyAuthentication=no`); key auth is not set up. Root password:
   `KINDLE_PASSWORD` env — never committed (it was once; see
   `SECURITY_ROTATION.md` for the rotation runbook).
-- **Raspberry Pi**: `192.168.50.163`. Server runs from the git checkout under
-  the `kindle-dashboard` systemd service (see `pi/setup-auto-deploy.sh`).
-  `ssh pi@192.168.50.163` fails with `Permission denied (publickey,password)`
-  from at least one dev machine (empty ssh-agent, no key installed) — unblock
-  that before relying on server-side debugging. `/health` on port 3000 is
-  plain HTTP and needs no SSH. `kindle-dashboard-updater.timer` pulls `main`
-  daily at 06:00 (`Persistent=true`, up to 300s jitter) and restarts the
-  service only if the checkout actually changed, so a long `/health` uptime
-  just means no upstream commits — not a broken timer.
+- **Raspberry Pi**: `192.168.50.163`. Server code lives at `~/dashboard-server/server`
+  on the Pi — plain files rsynced by `./deploy-to-pi.sh`, NOT a git checkout — run
+  under the `kindle-dashboard` systemd service (`WorkingDirectory=~/dashboard-server/server`,
+  `EnvironmentFile=~/dashboard-server/.env`). There is no auto-deploy timer active;
+  `pi/setup-auto-deploy.sh` can set up a git-pull-based `kindle-dashboard-updater.timer`
+  but it has never been run here — a long `/health` uptime just means nobody has
+  run `deploy-to-pi.sh` recently, not that a timer is quietly doing its job.
+  A stray `~/kindle-dashboard` directory also exists on the Pi (an old plain
+  copy, not a git repo, not wired to any systemd unit) — don't confuse it with
+  the live `~/dashboard-server`. SSH from this Mac needed a key installed via
+  `ssh-copy-id` (fixed 2026-08-07, alias `pi` added to `~/.ssh/config`); if a
+  future dev machine hits `Permission denied (publickey,password)`, that's
+  per-machine, not a Pi-side problem — unblock it before server-side debugging.
+  `/health` on port 3000 is plain HTTP and needs no SSH.
 - Ops runbook: `PI_PRODUCTION_GUIDE.md`. Layout system: `DASHBOARD_LAYOUTS.md`.

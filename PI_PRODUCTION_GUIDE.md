@@ -170,10 +170,12 @@ curl "http://localhost:3000/dashboard?refresh=true" -o /tmp/test.png
 cd /path/to/e_ink_screen
 
 ./deploy-to-pi.sh   # rsync + npm install + systemd restart
-
-# Or rely on the auto-deploy timer: push to main and the Pi's
-# kindle-dashboard-updater service pulls and restarts within minutes.
 ```
+
+Production deploys are manual rsync via `deploy-to-pi.sh`, not a git checkout on
+the Pi. `pi/setup-auto-deploy.sh` exists to set up a `kindle-dashboard-updater.timer`
+that git-pulls and restarts automatically, but it has never been run on this Pi —
+treat any mention of that timer elsewhere as aspirational, not live, until it is.
 
 ### Update Kindle Scripts
 
@@ -257,10 +259,10 @@ grep -i error /mnt/us/dashboard/logs/dashboard-loop.log | tail -20
 ## Configuration Files
 
 ### Pi Server Config
-- **Env file**: `~/e_ink_screen/server/.env` (loaded by systemd EnvironmentFile)
+- **Env file**: `~/dashboard-server/.env` (loaded by systemd EnvironmentFile — verified 2026-08-07)
 - **Systemd**: `/etc/systemd/system/kindle-dashboard.service`
-- **Server Code**: `~/e_ink_screen/server/`
-- **Python Venv**: `~/e_ink_screen/venv/`
+- **Server Code**: `~/dashboard-server/server/` (plain rsynced files, not a git checkout)
+- **Python Venv**: `~/dashboard-server/venv/`
 
 ### Kindle Config
 - **Main Config**: `/mnt/us/dashboard/config/dashboard.conf`
@@ -300,7 +302,7 @@ time curl -o /dev/null http://192.168.50.163:3000/dashboard
 
 ```bash
 # From Mac - Backup Pi configuration
-ssh pi@192.168.50.163 "tar czf ~/dashboard-backup-$(date +%Y%m%d).tar.gz ~/e_ink_screen/server/.env ~/e_ink_screen/cache"
+ssh pi@192.168.50.163 "tar czf ~/dashboard-backup-$(date +%Y%m%d).tar.gz ~/dashboard-server/.env ~/dashboard-server/cache"
 scp pi@192.168.50.163:~/dashboard-backup-*.tar.gz ~/backups/
 
 # Backup Kindle configuration
