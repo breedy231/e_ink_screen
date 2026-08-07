@@ -111,8 +111,19 @@ if [ "$RUN_NPM" = "1" ]; then
         else
             fail "npm test failed — run: cd server && npm test"
         fi
+    elif command -v node >/dev/null 2>&1; then
+        # node_modules is often absent on a fresh checkout (canvas is a native
+        # build). Don't skip everything silently — the dependency-free suites
+        # still run, so a regression there can't sneak through unvalidated.
+        echo "  - server/node_modules missing; running dependency-free tests only"
+        if (cd server && node battery-alert.test.js >/dev/null 2>&1); then
+            pass "battery-alert.test.js"
+        else
+            fail "battery-alert.test.js failed — run: cd server && node battery-alert.test.js"
+        fi
+        echo "  - canvas-dependent tests skipped (cd server && npm install)"
     else
-        echo "  - npm or server/node_modules missing, skipping (cd server && npm install)"
+        echo "  - node/npm missing, skipping"
     fi
 fi
 
