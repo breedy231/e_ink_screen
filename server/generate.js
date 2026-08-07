@@ -8,6 +8,7 @@ const { DashboardEngine, getLayoutDataNeeds, enrichLayoutWithData } = require('.
 const WeatherService = require('./weather-service');
 const PokemonService = require('./pokemon-service');
 const CalendarService = require('./calendar-service');
+const TrmnlService = require('./trmnl-service');
 
 /**
  * Unified dashboard generation pipeline — the single implementation shared
@@ -59,6 +60,13 @@ function createServices(options = {}) {
         calendar: new CalendarService({
             calendarUrl: config.CALENDAR_URL,
             timezone: config.TIMEZONE,
+            mockData
+        }),
+        trmnl: new TrmnlService({
+            baseUrl: config.TRMNL_BASE_URL,
+            deviceMac: config.TRMNL_DEVICE_MAC,
+            apiKey: config.TRMNL_API_KEY,
+            cacheTimeout: config.TRMNL_CACHE_TTL_MS,
             mockData
         })
     };
@@ -119,6 +127,16 @@ async function generateDashboard(layoutName, opts = {}) {
         } catch (error) {
             log(`Failed to get Pokemon data: ${error.message}`, 'WARN');
             data.pokemon = null;
+        }
+    }
+
+    if (needs.has('trmnl')) {
+        try {
+            data.trmnl = await services.trmnl.getFormattedTrmnl();
+            log(`TRMNL: ${data.trmnl ? data.trmnl.source : 'unavailable'}`);
+        } catch (error) {
+            log(`Failed to get TRMNL screen: ${error.message}`, 'WARN');
+            data.trmnl = null;
         }
     }
 

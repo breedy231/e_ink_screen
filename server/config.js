@@ -54,6 +54,16 @@ module.exports = {
     CALENDAR_URL: process.env.CALENDAR_URL || null,
     DISCORD_WEBHOOK_URL: process.env.DISCORD_WEBHOOK_URL || null,
 
+    // TRMNL (self-hosted BYOS) — off unless TRMNL_MODE is set and
+    // TRMNL_BASE_URL/DEVICE_MAC/API_KEY are all configured. See TRMNL_SETUP.md.
+    TRMNL_MODE: process.env.TRMNL_MODE || 'off',   // 'off' | 'alternate' | 'only'
+    TRMNL_BASE_URL: process.env.TRMNL_BASE_URL || null,
+    TRMNL_DEVICE_MAC: process.env.TRMNL_DEVICE_MAC || null,
+    TRMNL_API_KEY: process.env.TRMNL_API_KEY || null,
+    TRMNL_CACHE_TTL_MS: parseInt(process.env.TRMNL_CACHE_TTL_MS, 10) || 600000,
+    TRMNL_ROTATION: process.env.TRMNL_ROTATION || 'cw',   // 'cw' | 'ccw'
+    TRMNL_SLOT_MINUTES: parseInt(process.env.TRMNL_SLOT_MINUTES, 10) || 15,
+
     // Python for e-ink optimization scripts
     PYTHON_BIN: resolvePythonBin()
 };

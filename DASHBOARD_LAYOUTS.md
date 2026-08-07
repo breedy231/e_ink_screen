@@ -46,6 +46,15 @@ The Kindle Dashboard now supports a flexible, modular layout system that allows 
 - **Grid**: 12×10 (rows×cols)
 - **Features**: Bordered components, organized sections
 
+### TRMNL Layout
+- **File**: `layouts/trmnl.json`
+- **Description**: Full-canvas passthrough of the current screen from a
+  self-hosted TRMNL BYOS instance, rotated to portrait. Selected via
+  `TRMNL_MODE` (alternates with the default layout, or replaces it) rather
+  than picked directly — see `TRMNL_SETUP.md`.
+- **Grid**: 1×1 (rows×cols)
+- **Features**: No dashboard chrome; the entire canvas is the TRMNL image
+
 ## Usage
 
 ### Command Line Interface

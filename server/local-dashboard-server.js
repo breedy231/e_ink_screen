@@ -104,16 +104,55 @@ class LocalDashboardServer {
      * The Kindle appends ?battery=N&charging=N&t=... to every fetch; including
      * them made every request a cache miss (and a fresh render + Python
      * subprocess). Only params that change the rendered image belong here.
+     *
+     * layoutOverride pins the key to the *resolved* layout (from
+     * resolveLayout()) rather than the raw query string — without this, a
+     * bare `/dashboard` maps to one cache entry regardless of which layout
+     * TRMNL alternation actually resolved to, and alternation would appear
+     * to do nothing once the first entry was cached.
      */
-    getCacheKey(url) {
+    getCacheKey(url, layoutOverride = null) {
         const parsedUrl = new URL(url, `http://${this.host}:${this.port}`);
         const params = new URLSearchParams(parsedUrl.search);
         params.delete('battery');
         params.delete('charging');
         params.delete('t');
+        if (layoutOverride) {
+            params.set('layout', layoutOverride);
+        }
         params.sort();
         const search = params.toString();
         return `${parsedUrl.pathname}${search ? '?' + search : ''}`;
+    }
+
+    /**
+     * Decide which layout to render: an explicit ?layout= always wins;
+     * otherwise TRMNL_MODE drives it. 'alternate' flips on a stateless
+     * epoch-slot parity (no timers/state to keep in sync across restarts).
+     * When TRMNL would be shown, pre-check getFormattedTrmnl() so a
+     * down/unconfigured BYOS falls back to the default layout instead of
+     * rendering the TRMNL component's placeholder text on the real display.
+     */
+    async resolveLayout(parsedUrl) {
+        const explicit = parsedUrl.searchParams.get('layout');
+        if (explicit) return explicit;
+
+        const mode = config.TRMNL_MODE;
+        if (mode !== 'only' && mode !== 'alternate') return this.layout;
+
+        let wantsTrmnl = mode === 'only';
+        if (mode === 'alternate') {
+            const slotMs = config.TRMNL_SLOT_MINUTES * 60000;
+            wantsTrmnl = Math.floor(Date.now() / slotMs) % 2 === 0;
+        }
+        if (!wantsTrmnl) return this.layout;
+
+        const trmnlData = await this.services.trmnl.getFormattedTrmnl();
+        if (!trmnlData) {
+            this.log('TRMNL_MODE wants the trmnl layout but no screen is available; falling back to default layout', 'WARN');
+            return this.layout;
+        }
+        return 'trmnl';
     }
 
     isCacheValid(cacheEntry) {
@@ -148,7 +187,8 @@ class LocalDashboardServer {
 
     async handleDashboardRequest(req, res, parsedUrl) {
         try {
-            const cacheKey = this.getCacheKey(req.url);
+            const resolvedLayout = await this.resolveLayout(parsedUrl);
+            const cacheKey = this.getCacheKey(req.url, resolvedLayout);
             const cached = this.imageCache.get(cacheKey);
 
             // Any fetch at all proves the Kindle is alive, independent of
@@ -174,13 +214,10 @@ class LocalDashboardServer {
                 this.log(`Serving cached dashboard for ${cacheKey}`);
                 imageBuffer = cached.buffer;
             } else {
-                // Get layout from query params or use default
-                const queryParams = parsedUrl.searchParams;
-                const layout = queryParams.get('layout') || this.layout;
-                const showGrid = queryParams.get('grid') === 'true';
+                const showGrid = parsedUrl.searchParams.get('grid') === 'true';
 
                 // Generate new image
-                imageBuffer = await this.generateDashboardBuffer(layout, deviceStats, showGrid);
+                imageBuffer = await this.generateDashboardBuffer(resolvedLayout, deviceStats, showGrid);
 
                 // Cache the result
                 if (this.cacheEnabled) {
@@ -210,6 +247,7 @@ class LocalDashboardServer {
     }
 
     handleHealthCheck(req, res) {
+        const trmnlMeta = this.services.trmnl.loadMeta();
         const status = {
             status: 'healthy',
             timestamp: new Date().toISOString(),
@@ -220,6 +258,11 @@ class LocalDashboardServer {
                 enabled: this.cacheEnabled,
                 entries: this.imageCache.size,
                 timeout: this.cacheTimeout
+            },
+            trmnl: {
+                mode: config.TRMNL_MODE,
+                configured: this.services.trmnl.isConfigured(),
+                lastScreenFetchedAt: trmnlMeta.fetchedAt ? new Date(trmnlMeta.fetchedAt).toISOString() : null
             }
         };
 

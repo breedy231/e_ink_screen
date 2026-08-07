@@ -829,6 +829,66 @@ class PokemonSpriteComponent extends ComponentBase {
     }
 }
 
+class TrmnlComponent extends ComponentBase {
+    // Data this component needs injected (see enrichLayoutWithData)
+    static dataNeeds = ['trmnl'];
+
+    constructor(config = {}) {
+        super('trmnl', {
+            fontSize: 16,
+            textAlign: 'center',
+            trmnlData: config.trmnlData || null,
+            rotation: config.rotation || null, // 'cw' | 'ccw'; falls back to server config.TRMNL_ROTATION in render()
+            ...config
+        });
+    }
+
+    /**
+     * TRMNL screens are landscape (e.g. 800x480); this canvas is portrait
+     * (600x800). Rotate 90deg into portrait, then scale-to-fit so any
+     * source resolution pillarboxes cleanly instead of assuming 800x480.
+     */
+    async render(ctx, bounds) {
+        this.drawContainer(ctx, bounds);
+        const contentBounds = this.getContentBounds(bounds);
+
+        if (!this.config.trmnlData || !this.config.trmnlData.imagePath) {
+            this.setTextStyle(ctx);
+            ctx.textAlign = 'center';
+            ctx.fillText('TRMNL unavailable', contentBounds.x + contentBounds.width / 2, contentBounds.y + contentBounds.height / 2);
+            return;
+        }
+
+        try {
+            const image = await loadImage(this.config.trmnlData.imagePath);
+
+            // After a 90deg rotation, the image's rotated footprint is
+            // (height x width) — fit that footprint into contentBounds.
+            const rotatedWidth = image.height;
+            const rotatedHeight = image.width;
+            const scale = Math.min(contentBounds.width / rotatedWidth, contentBounds.height / rotatedHeight);
+            const drawWidth = image.width * scale;
+            const drawHeight = image.height * scale;
+
+            const centerX = contentBounds.x + contentBounds.width / 2;
+            const centerY = contentBounds.y + contentBounds.height / 2;
+
+            ctx.save();
+            const rotation = this.config.rotation || config.TRMNL_ROTATION;
+            ctx.translate(centerX, centerY);
+            ctx.rotate((rotation === 'ccw' ? -1 : 1) * Math.PI / 2);
+            ctx.drawImage(image, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
+            ctx.restore();
+        } catch (error) {
+            console.warn(`Failed to render TRMNL screen: ${error.message}`);
+
+            this.setTextStyle(ctx);
+            ctx.textAlign = 'center';
+            ctx.fillText('TRMNL render error', contentBounds.x + contentBounds.width / 2, contentBounds.y + contentBounds.height / 2);
+        }
+    }
+}
+
 class CalendarComponent extends ComponentBase {
     // Data this component needs injected (see enrichLayoutWithData)
     static dataNeeds = ['calendar'];
@@ -1175,7 +1235,8 @@ const COMPONENT_REGISTRY = {
     'calendar': CalendarComponent,
     'swiss-poster': SwissPosterComponent,
     'status-bar': StatusBarComponent,
-    'quote': QuoteComponent
+    'quote': QuoteComponent,
+    'trmnl': TrmnlComponent
 };
 
 // Data need → the config key components receive it under
@@ -1183,7 +1244,8 @@ const DATA_CONFIG_KEYS = {
     weather: 'weatherData',
     pokemon: 'pokemonData',
     calendar: 'calendarData',
-    deviceStats: 'deviceStats'
+    deviceStats: 'deviceStats',
+    trmnl: 'trmnlData'
 };
 
 /**

@@ -1,0 +1,19 @@
+{
+  "name": "TRMNL",
+  "description": "Full-canvas passthrough of the current TRMNL BYOS screen, rotated to portrait",
+  "grid": {
+    "rows": 1,
+    "cols": 1,
+    "margin": 0,
+    "gap": 0
+  },
+  "components": [
+    {
+      "type": "trmnl",
+      "position": { "row": 0, "col": 0, "rowSpan": 1, "colSpan": 1 },
+      "config": {
+        "padding": 0
+      }
+    }
+  ]
+}
