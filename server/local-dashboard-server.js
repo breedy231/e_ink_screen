@@ -6,6 +6,7 @@ const config = require('./config');
 const { generateDashboard, optimizeForEink, createServices } = require('./generate');
 const { sendDiscordNotification } = require('./notify');
 const { BatteryAlertState } = require('./battery-alert');
+const { StalenessAlertState } = require('./staleness-alert');
 
 /**
  * Local HTTP Server for Kindle Dashboard
@@ -24,6 +25,12 @@ class LocalDashboardServer {
 
         this.imageCache = new Map();
         this.batteryAlerts = new BatteryAlertState();
+        this.stalenessAlert = new StalenessAlertState({
+            thresholdMs: config.STALE_THRESHOLD_MS,
+            activeHoursStart: config.ACTIVE_HOURS_START,
+            activeHoursEnd: config.ACTIVE_HOURS_END,
+            timezone: config.TIMEZONE
+        });
         this.discordWebhookUrl = config.DISCORD_WEBHOOK_URL;
 
         // Long-lived services so weather/calendar caches persist across requests
@@ -55,6 +62,34 @@ class LocalDashboardServer {
             fields: [
                 { name: 'Battery', value: `${level}%`, inline: true },
                 { name: 'Severity', value: severity, inline: true },
+                { name: 'Time', value: new Date().toLocaleString('en-US', { timeZone: config.TIMEZONE }), inline: true }
+            ]
+        }).then(() => {
+            this.log('Discord notification sent');
+        }).catch((err) => {
+            this.log(`Discord notification error: ${err.message}`, 'ERROR');
+        });
+    }
+
+    /**
+     * Runs on a timer (not per-request, since a dead Kindle stops sending
+     * requests). Fires once when the Kindle goes quiet during active hours
+     * and stays quiet past the threshold; re-arms on the next fetch.
+     */
+    checkStaleness() {
+        if (!this.discordWebhookUrl) return;
+
+        const decision = this.stalenessAlert.evaluate(Date.now());
+        if (!decision.notify) return;
+
+        this.log(`Kindle silent for ${decision.silentMinutes} min during active hours — sending Discord notification`, 'WARN');
+
+        sendDiscordNotification(this.discordWebhookUrl, {
+            title: 'Kindle Dashboard Silent',
+            description: `No fetch from the Kindle in **${decision.silentMinutes} min** during active hours. It may be dead, crashed, or off WiFi.`,
+            color: 0xED4245,
+            fields: [
+                { name: 'Silent for', value: `${decision.silentMinutes} min`, inline: true },
                 { name: 'Time', value: new Date().toLocaleString('en-US', { timeZone: config.TIMEZONE }), inline: true }
             ]
         }).then(() => {
@@ -115,6 +150,10 @@ class LocalDashboardServer {
         try {
             const cacheKey = this.getCacheKey(req.url);
             const cached = this.imageCache.get(cacheKey);
+
+            // Any fetch at all proves the Kindle is alive, independent of
+            // whether it sent battery telemetry.
+            this.stalenessAlert.recordFetch(Date.now());
 
             // Check battery level from Kindle
             const batteryLevel = parsedUrl.searchParams.get('battery');
@@ -327,6 +366,12 @@ class LocalDashboardServer {
             setInterval(() => this.cleanupCache(), this.cacheTimeout);
         }
 
+        // Liveness check: the Kindle dying stops requests, so this has to
+        // run on its own timer rather than piggyback on a handler.
+        if (this.discordWebhookUrl) {
+            setInterval(() => this.checkStaleness(), config.STALE_CHECK_INTERVAL_MS);
+        }
+
         server.listen(this.port, this.host, () => {
             this.log(`🚀 Kindle Dashboard Local Server started`);
             this.log(`📊 Dashboard endpoint: http://${this.host}:${this.port}/dashboard`);
@@ -336,8 +381,9 @@ class LocalDashboardServer {
             this.log(`🗄️  Cache: ${this.cacheEnabled} (${this.cacheTimeout}ms TTL)`);
             if (this.discordWebhookUrl) {
                 this.log(`🔋 Battery notifications enabled via Discord webhook`);
+                this.log(`📡 Staleness alert enabled: threshold ${config.STALE_THRESHOLD_MS / 60000}min, active hours ${config.ACTIVE_HOURS_START}:00-${config.ACTIVE_HOURS_END}:00 ${config.TIMEZONE}`);
             } else {
-                this.log(`🔋 Battery notifications disabled (set DISCORD_WEBHOOK_URL env var to enable)`);
+                this.log(`🔋 Battery/staleness notifications disabled (set DISCORD_WEBHOOK_URL env var to enable)`);
             }
         });
 

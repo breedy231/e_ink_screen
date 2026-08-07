@@ -121,6 +121,11 @@ if [ "$RUN_NPM" = "1" ]; then
         else
             fail "battery-alert.test.js failed — run: cd server && node battery-alert.test.js"
         fi
+        if (cd server && node staleness-alert.test.js >/dev/null 2>&1); then
+            pass "staleness-alert.test.js"
+        else
+            fail "staleness-alert.test.js failed — run: cd server && node staleness-alert.test.js"
+        fi
         echo "  - canvas-dependent tests skipped (cd server && npm install)"
     else
         echo "  - node/npm missing, skipping"

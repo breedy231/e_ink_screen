@@ -39,6 +39,13 @@ module.exports = {
     LATITUDE: parseFloat(process.env.LATITUDE) || 41.8781,   // Chicago
     LONGITUDE: parseFloat(process.env.LONGITUDE) || -87.6298,
 
+    // Staleness alert — must match kindle/config/dashboard.conf's
+    // ACTIVE_HOURS_START/END or this will false-alarm at the edges of the day.
+    STALE_THRESHOLD_MS: parseInt(process.env.STALE_THRESHOLD_MS, 10) || 45 * 60 * 1000,
+    STALE_CHECK_INTERVAL_MS: parseInt(process.env.STALE_CHECK_INTERVAL_MS, 10) || 5 * 60 * 1000,
+    ACTIVE_HOURS_START: parseInt(process.env.ACTIVE_HOURS_START, 10) || 7,
+    ACTIVE_HOURS_END: parseInt(process.env.ACTIVE_HOURS_END, 10) || 22,
+
     // Display
     CANVAS_WIDTH: 600,
     CANVAS_HEIGHT: 800,
