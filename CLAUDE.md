@@ -200,3 +200,16 @@ white), no gradients. The server's `optimize-for-eink.py` pass
   per-machine, not a Pi-side problem — unblock it before server-side debugging.
   `/health` on port 3000 is plain HTTP and needs no SSH.
 - Ops runbook: `PI_PRODUCTION_GUIDE.md`. Layout system: `DASHBOARD_LAYOUTS.md`.
+
+## TRMNL integration (optional)
+
+The dashboard can alternate with screens from a self-hosted TRMNL BYOS
+instance (e.g. `usetrmnl/byos_laravel`) instead of showing only the Kindle
+layout. `server/trmnl-service.js` polls the BYOS `/api/display` endpoint the
+same way real TRMNL firmware would and downloads the rendered PNG; the
+`trmnl` component in `dashboard-engine.js` rotates it into the portrait
+canvas via the `layouts/trmnl.json` layout. It's entirely additive and off
+by default — `TRMNL_MODE` (`off` / `alternate` / `only`) in `config.js`
+gates whether `local-dashboard-server.js` ever resolves to that layout, and
+an unconfigured or unreachable BYOS instance falls back to the normal
+layout, never a broken image. See `TRMNL_SETUP.md` for setup.

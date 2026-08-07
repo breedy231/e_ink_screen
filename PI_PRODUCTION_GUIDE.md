@@ -263,6 +263,9 @@ grep -i error /mnt/us/dashboard/logs/dashboard-loop.log | tail -20
 - **Systemd**: `/etc/systemd/system/kindle-dashboard.service`
 - **Server Code**: `~/dashboard-server/server/` (plain rsynced files, not a git checkout)
 - **Python Venv**: `~/dashboard-server/venv/`
+- **TRMNL keys** (optional, off by default): `TRMNL_MODE`, `TRMNL_BASE_URL`,
+  `TRMNL_DEVICE_MAC`, `TRMNL_API_KEY`, `TRMNL_CACHE_TTL_MS`, `TRMNL_ROTATION`,
+  `TRMNL_SLOT_MINUTES` — see `TRMNL_SETUP.md` for the full setup runbook.
 
 ### Kindle Config
 - **Main Config**: `/mnt/us/dashboard/config/dashboard.conf`
