@@ -3,6 +3,7 @@
 const ical = require('node-ical');
 const fs = require('fs');
 const path = require('path');
+const config = require('./config');
 
 /**
  * Calendar Service Module using iCal
@@ -11,9 +12,10 @@ const path = require('path');
 
 class CalendarService {
     constructor(options = {}) {
-        this.calendarUrl = options.calendarUrl ||
-            'https://p131-caldav.icloud.com/published/2/MjI5OTUzMTIyMjI5OTUzMZLhbQwURkdD4X6iOELPaSGd-SFwu4bBeQeKF-HiOzWVvNRHxpB7SgCR2AETucFgtWqk_4S6kyx6HqeH7RvKT3Q';
-        this.timezone = options.timezone || 'America/Chicago';
+        // Calendar URL is private (contains an auth token) — never hardcode it.
+        // Set CALENDAR_URL in the environment (see server/.env.example).
+        this.calendarUrl = options.calendarUrl || config.CALENDAR_URL;
+        this.timezone = options.timezone || config.TIMEZONE;
         this.cacheDir = options.cacheDir || path.join(__dirname, '..', 'cache');
         this.cacheTimeout = options.cacheTimeout || 15 * 60 * 1000; // 15 minutes
         this.mockData = options.mockData || false;
@@ -100,9 +102,28 @@ class CalendarService {
     /**
      * Get calendar data with caching
      */
+    /**
+     * Empty calendar shown when no CALENDAR_URL is configured —
+     * better a blank section than fake mock events on a real display.
+     */
+    getEmptyCalendarData() {
+        return {
+            today: [],
+            tomorrow: [],
+            upcoming: [],
+            source: 'unconfigured',
+            _timestamp: Date.now()
+        };
+    }
+
     async getCalendarData() {
         if (this.mockData) {
             return { _source: 'mock', ...this.getMockCalendarData() };
+        }
+
+        if (!this.calendarUrl) {
+            console.warn('CalendarService: no calendar URL configured (set CALENDAR_URL); showing empty calendar');
+            return this.getEmptyCalendarData();
         }
 
         // Check cache first

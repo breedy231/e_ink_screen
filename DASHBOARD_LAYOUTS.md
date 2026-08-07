@@ -71,21 +71,6 @@ node generate-flexible-dashboard.js --all --test
 node generate-flexible-dashboard.js default --grid
 ```
 
-### Backward Compatibility
-
-The V2 generator maintains full backward compatibility:
-
-```bash
-# Original syntax still works
-node generate-dashboard-v2.js --test
-node generate-dashboard-v2.js --compact
-node generate-dashboard-v2.js --watch
-
-# New layout options
-node generate-dashboard-v2.js --layout minimal
-node generate-dashboard-v2.js --layout split --test
-```
-
 ## Creating Custom Layouts
 
 ### Layout Configuration Format
@@ -205,23 +190,13 @@ The system includes several e-ink specific optimizations:
 - Avoid gradients and complex graphics
 - Test layouts on actual e-ink hardware when possible
 
-## Integration with Existing Pipeline
+## Integration with the Pipeline
 
-The flexible dashboard system integrates seamlessly with the existing Kindle deployment pipeline:
-
-1. **generate-and-test.sh** - Can be updated to use new generator
-2. **optimize-for-eink.py** - Continues to work with generated images
-3. **Kindle deployment** - No changes needed for deployment scripts
-
-To switch the main pipeline to use flexible layouts, update `generate-and-test.sh`:
-
-```bash
-# Replace this line:
-node generate-dashboard.js --test
-
-# With this:
-node generate-dashboard-v2.js --layout default --test
-```
+Both the production HTTP server (`local-dashboard-server.js`) and this CLI
+render through the same pipeline (`generate.js`), so a layout that renders
+correctly via the CLI renders identically in production. The server picks
+its layout from `DEFAULT_LAYOUT` (env / `config.js`) or a
+`?layout=<name>` query parameter.
 
 ## Development Workflow
 
@@ -235,14 +210,16 @@ node generate-dashboard-v2.js --layout default --test
 
 ```
 server/
-├── dashboard-engine.js              # Core flexible engine
-├── generate-flexible-dashboard.js   # Flexible CLI generator
-├── generate-dashboard-v2.js         # Backward-compatible wrapper
-└── layouts/
-    ├── default.json                 # Default layout
-    ├── compact.json                 # Compact layout
-    ├── minimal.json                 # Minimal layout
-    └── split.json                   # Split layout
+├── dashboard-engine.js              # Grid system + components + registry
+├── generate.js                      # Shared render pipeline (server + CLI)
+├── generate-flexible-dashboard.js   # CLI generator
+├── render-utils.js                  # Shared drawing helpers
+└── layouts/                         # One JSON per layout (auto-discovered)
+    └── wild-swiss.json              # Production layout
 ```
+
+Run `node generate-flexible-dashboard.js --list` for the current layout set.
+To add a new component type, see "How to add a dashboard component" in
+`CLAUDE.md`.
 
 This modular system provides maximum flexibility while maintaining the simplicity and reliability needed for the Kindle e-ink environment.

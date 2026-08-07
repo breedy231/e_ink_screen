@@ -11,13 +11,14 @@
  */
 
 const fs = require('fs');
+const config = require('./config');
 const path = require('path');
 
 class PokemonSelector {
     constructor(options = {}) {
         this.dataFile = options.dataFile || path.join(__dirname, 'pokemon-data.json');
         this.historyFile = options.historyFile || path.join(__dirname, '..', 'cache', 'pokemon-history.json');
-        this.timezone = options.timezone || 'America/Chicago';
+        this.timezone = options.timezone || config.TIMEZONE;
 
         // Load Pokemon database
         this.pokemonDb = this._loadDatabase();
@@ -68,7 +69,9 @@ class PokemonSelector {
             'beach': { types: ['water', 'ground'], pokemonIds: [7, 8, 9, 131, 120, 121] }, // Squirtle line, Lapras, Staryu, Starmie
             'hike': { types: ['rock', 'ground', 'grass'], pokemonIds: [74, 75, 76, 95] }, // Geodude line, Onix
             'camp': { types: ['fire', 'grass', 'ground'], pokemonIds: [4, 5, 6, 37, 58] }, // Charmander line, Vulpix, Growlithe
-            'garden': { types: ['grass', 'bug'], pokemonIds: [43, 44, 45, 182, 315, 407] }, // Oddish line, Bellossom, Roselia, Roserade
+            // Oddish line, Bellossom, Roselia, Roserade + starter grass lines
+            // (was accidentally defined twice — the second literal silently won)
+            'garden': { types: ['grass', 'bug'], pokemonIds: [43, 44, 45, 182, 315, 407, 1, 2, 3, 152, 153, 154] },
 
             // Social
             'dinner': { types: ['normal', 'fire'], pokemonIds: [143, 446] }, // Snorlax, Munchlax
@@ -110,7 +113,6 @@ class PokemonSelector {
             'walk': { types: ['normal', 'grass'], pokemonIds: [58, 59, 133] }, // Growlithe, Arcanine, Eevee
 
             // Seasonal/Nature
-            'garden': { types: ['grass', 'bug'], pokemonIds: [1, 2, 3, 152, 153, 154] },
             'cleaning': { types: ['water', 'normal'], pokemonIds: [60, 61, 62] }, // Poliwag line
             'shopping': { types: ['normal'], pokemonIds: [52, 53] }, // Meowth (Pay Day!)
             'move': { types: ['fighting', 'normal'], pokemonIds: [66, 67, 68, 143] } // Machop line, Snorlax

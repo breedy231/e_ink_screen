@@ -1,0 +1,5 @@
+# Python dependencies for the e-ink optimization scripts
+# (optimize-for-eink.py, optimize-sprite-for-eink.py)
+# Install into the venv created by pi/setup-auto-deploy.sh:
+#   python3 -m venv venv && venv/bin/pip install -r server/requirements.txt
+Pillow

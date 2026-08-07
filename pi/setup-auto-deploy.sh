@@ -58,11 +58,12 @@ cd "$NEW_SERVER_DIR"
 npm install --production 2>&1 | tail -3
 
 # Set up Python venv for e-ink optimization if not present
+# (server/config.js resolves PYTHON_BIN to this venv automatically)
 if [ ! -d "$REPO_DIR/venv" ]; then
     echo "  Setting up Python venv for e-ink optimization..."
     python3 -m venv "$REPO_DIR/venv"
-    "$REPO_DIR/venv/bin/pip" install Pillow 2>&1 | tail -1
 fi
+"$REPO_DIR/venv/bin/pip" install -q -r "$NEW_SERVER_DIR/requirements.txt" 2>&1 | tail -1
 echo ""
 
 # ── 4. Update systemd service ────────────────────────────────

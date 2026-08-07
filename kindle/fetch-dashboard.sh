@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 ##############################################################################
 # Kindle Dashboard Fetch Script
@@ -23,7 +23,9 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 DEFAULT_CONFIG_FILE="${SCRIPT_DIR}/config/dashboard.conf"
 DEFAULT_LOG_FILE="${SCRIPT_DIR}/logs/fetch.log"
 DEFAULT_DASHBOARD_DIR="/mnt/us/dashboard"
-DEFAULT_SERVER_HOST="192.168.1.100"
+# No default server host: it must come from config/dashboard.conf or --host.
+# A wrong-network fallback here once caused silent fetches against a dead IP.
+DEFAULT_SERVER_HOST=""
 DEFAULT_SERVER_PORT="3000"
 DEFAULT_TIMEOUT="30"
 DEFAULT_RETRIES="3"
@@ -111,10 +113,19 @@ log_fatal() {
 load_config() {
     local config_file="${1:-${DEFAULT_CONFIG_FILE}}"
 
+    # Command-line flags are parsed before this runs; stash their values so
+    # sourcing the config file cannot clobber them.
+    # Precedence: CLI flag > config file > default.
+    local cli_log_file="${LOG_FILE}"
+    local cli_dashboard_dir="${DASHBOARD_DIR}"
+    local cli_server_host="${SERVER_HOST}"
+    local cli_server_port="${SERVER_PORT}"
+    local cli_timeout="${TIMEOUT}"
+    local cli_retries="${RETRIES}"
+
     if [ -f "${config_file}" ]; then
         log_debug "Loading configuration from: ${config_file}"
 
-        # Source config file safely
         # Source config file
         . "${config_file}"
 
@@ -124,15 +135,19 @@ load_config() {
         log_info "Using default configuration"
     fi
 
-    # Set defaults for any undefined variables
     CONFIG_FILE="${config_file}"
-    LOG_FILE="${LOG_FILE:-${DEFAULT_LOG_FILE}}"
-    DASHBOARD_DIR="${DASHBOARD_DIR:-${DEFAULT_DASHBOARD_DIR}}"
-    SERVER_HOST="${SERVER_HOST:-${DEFAULT_SERVER_HOST}}"
-    SERVER_PORT="${SERVER_PORT:-${DEFAULT_SERVER_PORT}}"
-    TIMEOUT="${TIMEOUT:-${DEFAULT_TIMEOUT}}"
-    RETRIES="${RETRIES:-${DEFAULT_RETRIES}}"
+    LOG_FILE="${cli_log_file:-${LOG_FILE:-${DEFAULT_LOG_FILE}}}"
+    DASHBOARD_DIR="${cli_dashboard_dir:-${DASHBOARD_DIR:-${DEFAULT_DASHBOARD_DIR}}}"
+    SERVER_HOST="${cli_server_host:-${SERVER_HOST:-${DEFAULT_SERVER_HOST}}}"
+    SERVER_PORT="${cli_server_port:-${SERVER_PORT:-${DEFAULT_SERVER_PORT}}}"
+    TIMEOUT="${cli_timeout:-${TIMEOUT:-${DEFAULT_TIMEOUT}}}"
+    RETRIES="${cli_retries:-${RETRIES:-${DEFAULT_RETRIES}}}"
     BACKUP_IMAGE="${BACKUP_IMAGE:-${DEFAULT_BACKUP_IMAGE}}"
+
+    # Fail loudly rather than fetch from a guessed/stale address
+    if [ -z "${SERVER_HOST}" ]; then
+        log_fatal "SERVER_HOST is not set — configure it in ${config_file} or pass --host"
+    fi
 
     # Construct server URL
     SERVER_URL="http://${SERVER_HOST}:${SERVER_PORT}"
@@ -162,7 +177,7 @@ DESCRIPTION:
 
 OPTIONS:
     -c, --config FILE       Configuration file (default: ${DEFAULT_CONFIG_FILE})
-    -h, --host HOST         Server hostname/IP (default: ${DEFAULT_SERVER_HOST})
+    -h, --host HOST         Server hostname/IP (required if not in config)
     -p, --port PORT         Server port (default: ${DEFAULT_SERVER_PORT})
     -d, --dir DIR           Dashboard directory (default: ${DEFAULT_DASHBOARD_DIR})
     -l, --log FILE          Log file path (default: ${DEFAULT_LOG_FILE})
@@ -292,11 +307,10 @@ download_dashboard() {
     # Add force refresh parameter
     if [ "${FORCE_REFRESH}" = "true" ]; then
         local timestamp=$(date +%s)
-        local separator="?"
-        if [ "${dashboard_url}" = *"?"* ]; then
-            separator="&"
-        fi
-        dashboard_url="${dashboard_url}${separator}t=${timestamp}"
+        case "${dashboard_url}" in
+            *"?"*) dashboard_url="${dashboard_url}&t=${timestamp}" ;;
+            *)     dashboard_url="${dashboard_url}?t=${timestamp}" ;;
+        esac
         log_debug "Force refresh enabled"
     fi
 
@@ -490,7 +504,7 @@ handle_fallback() {
         log_debug "Dashboard directory doesn't exist, no fallback images available"
     else
         for image in "${DASHBOARD_DIR}"/*.png; do
-            if [ -f "${image}" && "${image}" != "${current_file}" ]; then
+            if [ -f "${image}" ] && [ "${image}" != "${current_file}" ]; then
                 log_info "Trying fallback image: ${image}"
                 if display_image "${image}" "partial"; then
                     return 0

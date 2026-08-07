@@ -15,27 +15,32 @@
 # Must be started after boot to survive reboots — see init script.
 #
 # Usage: ./dashboard-loop.sh [OPTIONS]
-#   --interval SECONDS   Update interval (default: 300 = 5 min)
+#   --interval SECONDS   Update interval (default: 900 = 15 min, or UPDATE_INTERVAL from config)
 #   --once               Run once and exit (testing)
 ##############################################################################
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CONFIG_FILE="$SCRIPT_DIR/config/dashboard.conf"
 FETCH_SCRIPT="$SCRIPT_DIR/fetch-dashboard.sh"
-LOG_FILE="$SCRIPT_DIR/logs/dashboard-loop.log"
+# NOTE: named LOOP_LOG (not LOG_FILE) deliberately — dashboard.conf is
+# flat-sourced in main() and defines LOG_FILE for fetch-dashboard.sh; a
+# shared name would silently redirect this loop's log into fetch.log.
+LOOP_LOG="$SCRIPT_DIR/logs/dashboard-loop.log"
 PID_FILE="$SCRIPT_DIR/dashboard-loop.pid"
 
 # Defaults
-UPDATE_INTERVAL=900
 ALIGN_BUFFER=30       # seconds past the boundary to fetch (ensures server generates correct time)
 RUN_ONCE=false
 WIFI_WAIT_MAX=30
+
+# Interval precedence: --interval flag > UPDATE_INTERVAL in config > 900
+CLI_INTERVAL=""
 
 # Parse arguments
 while [ $# -gt 0 ]; do
     case $1 in
         --interval)
-            UPDATE_INTERVAL="$2"
+            CLI_INTERVAL="$2"
             shift 2
             ;;
         --once)
@@ -53,18 +58,18 @@ log_msg() {
     local ts
     ts=$(date '+%Y-%m-%d %H:%M:%S')
     echo "[$ts] $1"
-    if [ -d "$(dirname "$LOG_FILE")" ]; then
-        echo "[$ts] $1" >> "$LOG_FILE"
+    if [ -d "$(dirname "$LOOP_LOG")" ]; then
+        echo "[$ts] $1" >> "$LOOP_LOG"
     fi
 }
 
 rotate_log() {
-    if [ -f "$LOG_FILE" ]; then
+    if [ -f "$LOOP_LOG" ]; then
         local size
-        size=$(wc -c < "$LOG_FILE" 2>/dev/null || echo 0)
+        size=$(wc -c < "$LOOP_LOG" 2>/dev/null || echo 0)
         if [ "$size" -gt 102400 ]; then
-            tail -100 "$LOG_FILE" > "${LOG_FILE}.tmp"
-            mv "${LOG_FILE}.tmp" "$LOG_FILE"
+            tail -100 "$LOOP_LOG" > "${LOOP_LOG}.tmp"
+            mv "${LOOP_LOG}.tmp" "$LOOP_LOG"
             log_msg "Log rotated"
         fi
     fi
@@ -136,8 +141,9 @@ do_update() {
         return 1
     fi
 
-    if [ -x "$FETCH_SCRIPT" ]; then
-        "$FETCH_SCRIPT" --config "$CONFIG_FILE" >> "$LOG_FILE" 2>&1
+    # Invoke via sh: /mnt/us is vfat, so exec bits don't survive there
+    if [ -f "$FETCH_SCRIPT" ]; then
+        sh "$FETCH_SCRIPT" --config "$CONFIG_FILE" >> "$LOOP_LOG" 2>&1
         local rc=$?
         if [ $rc -eq 0 ]; then
             log_msg "Update successful"
@@ -246,6 +252,9 @@ main() {
     ACTIVE_HOURS_START="${ACTIVE_HOURS_START:-7}"
     ACTIVE_HOURS_END="${ACTIVE_HOURS_END:-22}"
     UTC_OFFSET="${UTC_OFFSET:-auto}"
+
+    # Interval: --interval flag wins, then UPDATE_INTERVAL from config, then 900s
+    UPDATE_INTERVAL="${CLI_INTERVAL:-${UPDATE_INTERVAL:-900}}"
 
     log_msg "========================================="
     log_msg "Dashboard loop starting (PID $$)"

@@ -1,46 +1,32 @@
 #!/usr/bin/env node
 
 const http = require('http');
-const { DashboardEngine } = require('./dashboard-engine');
-const WeatherService = require('./weather-service');
-const PokemonService = require('./pokemon-service');
-const CalendarService = require('./calendar-service');
-const { sendDiscordNotification } = require('./notify');
-const fs = require('fs');
-const path = require('path');
 const { URL } = require('url');
-const { spawn } = require('child_process');
+const config = require('./config');
+const { generateDashboard, optimizeForEink, createServices } = require('./generate');
+const { sendDiscordNotification } = require('./notify');
 
 /**
  * Local HTTP Server for Kindle Dashboard
- * Uses the same dashboard engine as generate-and-test.sh
- * Generates proper weather dashboards with flexible layouts
+ *
+ * Thin HTTP layer: routing, caching, and battery notifications.
+ * Dashboard generation lives in generate.js (shared with the CLI).
  */
 
 class LocalDashboardServer {
     constructor(options = {}) {
-        this.port = options.port || 3000;
-        this.host = options.host || 'localhost';
+        this.port = options.port || config.PORT;
+        this.host = options.host || config.HOST;
         this.cacheEnabled = options.cache !== false;
-        this.cacheTimeout = options.cacheTimeout || 60000; // 1 minute default
-        this.layout = options.layout || 'wild-swiss';
+        this.cacheTimeout = options.cacheTimeout || config.CACHE_TTL_MS;
+        this.layout = options.layout || config.DEFAULT_LAYOUT;
 
         this.imageCache = new Map();
         this.lastBatteryNotificationLevel = null; // last 5%-bucket we notified at
-        this.discordWebhookUrl = process.env.DISCORD_WEBHOOK_URL || null;
-        this.weatherService = new WeatherService({
-            latitude: 41.8781,
-            longitude: -87.6298,
-            timezone: 'America/Chicago',
-            mockData: false
-        });
-        this.pokemonService = new PokemonService({
-            mockData: false
-        });
-        this.calendarService = new CalendarService({
-            timezone: 'America/Chicago',
-            mockData: false
-        });
+        this.discordWebhookUrl = config.DISCORD_WEBHOOK_URL;
+
+        // Long-lived services so weather/calendar caches persist across requests
+        this.services = createServices({ mockData: false });
     }
 
     log(message, level = 'INFO') {
@@ -77,7 +63,7 @@ class LocalDashboardServer {
             fields: [
                 { name: 'Battery', value: `${level}%`, inline: true },
                 { name: 'Severity', value: severity, inline: true },
-                { name: 'Time', value: new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }), inline: true }
+                { name: 'Time', value: new Date().toLocaleString('en-US', { timeZone: config.TIMEZONE }), inline: true }
             ]
         }).then(() => {
             this.log('Discord notification sent');
@@ -86,9 +72,21 @@ class LocalDashboardServer {
         });
     }
 
+    /**
+     * Cache key from the request URL, EXCLUDING per-request telemetry params.
+     * The Kindle appends ?battery=N&charging=N&t=... to every fetch; including
+     * them made every request a cache miss (and a fresh render + Python
+     * subprocess). Only params that change the rendered image belong here.
+     */
     getCacheKey(url) {
         const parsedUrl = new URL(url, `http://${this.host}:${this.port}`);
-        return `${parsedUrl.pathname}${parsedUrl.search}`;
+        const params = new URLSearchParams(parsedUrl.search);
+        params.delete('battery');
+        params.delete('charging');
+        params.delete('t');
+        params.sort();
+        const search = params.toString();
+        return `${parsedUrl.pathname}${search ? '?' + search : ''}`;
     }
 
     isCacheValid(cacheEntry) {
@@ -97,257 +95,28 @@ class LocalDashboardServer {
     }
 
     /**
-     * Optimize image for e-ink using Python script
+     * Generate an e-ink-optimized dashboard PNG buffer.
+     * Generation + optimization live in generate.js (shared with the CLI).
      */
-    async optimizeForEink(imageBuffer) {
-        return new Promise((resolve, reject) => {
-            // Create temp files
-            const tempDir = path.join(__dirname, '..', 'temp');
-            if (!fs.existsSync(tempDir)) {
-                fs.mkdirSync(tempDir, { recursive: true });
-            }
+    async generateDashboardBuffer(layout, deviceStats = null, showGrid = false) {
+        this.log(`Generating dashboard with layout: ${layout}`);
 
-            const tempInput = path.join(tempDir, `dashboard_${Date.now()}.png`);
-            const tempOutput = path.join(tempDir, `dashboard_${Date.now()}_optimized.png`);
-
-            try {
-                // Write buffer to temp file
-                fs.writeFileSync(tempInput, imageBuffer);
-
-                // Run Python optimization script using virtual environment
-                const pythonScript = path.join(__dirname, 'optimize-for-eink.py');
-                const venvPython = path.join(__dirname, '..', 'test_env', 'bin', 'python3');
-
-                // Use venv python if available, fallback to system python3
-                const pythonBinary = fs.existsSync(venvPython) ? venvPython : 'python3';
-
-                const python = spawn(pythonBinary, [pythonScript, tempInput, '-o', tempOutput]);
-
-                let stderr = '';
-
-                python.stderr.on('data', (data) => {
-                    stderr += data.toString();
-                });
-
-                python.on('close', (code) => {
-                    try {
-                        if (code === 0 && fs.existsSync(tempOutput)) {
-                            // Read optimized image
-                            const optimizedBuffer = fs.readFileSync(tempOutput);
-
-                            // Cleanup temp files
-                            fs.unlinkSync(tempInput);
-                            fs.unlinkSync(tempOutput);
-
-                            resolve(optimizedBuffer);
-                        } else {
-                            // Cleanup and return original if optimization fails
-                            fs.unlinkSync(tempInput);
-                            if (fs.existsSync(tempOutput)) {
-                                fs.unlinkSync(tempOutput);
-                            }
-
-                            this.log(`E-ink optimization failed (code ${code}), using original image`, 'WARN');
-                            this.log(`Python error: ${stderr}`, 'DEBUG');
-                            resolve(imageBuffer);
-                        }
-                    } catch (cleanupError) {
-                        this.log(`Cleanup error: ${cleanupError.message}`, 'ERROR');
-                        resolve(imageBuffer);
-                    }
-                });
-
-                python.on('error', (error) => {
-                    this.log(`Python spawn error: ${error.message}`, 'ERROR');
-                    // Cleanup and return original
-                    if (fs.existsSync(tempInput)) fs.unlinkSync(tempInput);
-                    if (fs.existsSync(tempOutput)) fs.unlinkSync(tempOutput);
-                    resolve(imageBuffer);
-                });
-
-            } catch (error) {
-                this.log(`E-ink optimization error: ${error.message}`, 'ERROR');
-                // Cleanup on error
-                if (fs.existsSync(tempInput)) fs.unlinkSync(tempInput);
-                if (fs.existsSync(tempOutput)) fs.unlinkSync(tempOutput);
-                resolve(imageBuffer);
-            }
-        });
-    }
-
-    /**
-     * Enrich layout configuration with data
-     */
-    enrichLayoutWithData(layoutConfig, weatherData, pokemonData, timeData, calendarData, deviceStats) {
-        const enrichedConfig = JSON.parse(JSON.stringify(layoutConfig));
-
-        enrichedConfig.components = enrichedConfig.components.map(component => {
-            // Inject weather data into weather components
-            if ((component.type === 'weather' || component.type === 'hero-weather' || component.type === 'weather-illustration') && weatherData) {
-                return {
-                    ...component,
-                    config: {
-                        ...component.config,
-                        weatherData: weatherData
-                    }
-                };
-            }
-
-            // Inject Pokemon data into pokemon-sprite components
-            if (component.type === 'pokemon-sprite' && pokemonData) {
-                return {
-                    ...component,
-                    config: {
-                        ...component.config,
-                        pokemonData: pokemonData
-                    }
-                };
-            }
-
-            // Inject device stats into status-bar components
-            if (component.type === 'status-bar') {
-                return component; // No device stats in local server currently
-            }
-
-            // Inject calendar data into calendar components
-            if (component.type === 'calendar' && calendarData) {
-                return {
-                    ...component,
-                    config: {
-                        ...component.config,
-                        calendarData: calendarData
-                    }
-                };
-            }
-
-            // Full-canvas components that need all data
-            if (component.type === 'watch-face' || component.type === 'brutalist' || component.type === 'swiss-poster') {
-                return {
-                    ...component,
-                    config: {
-                        ...component.config,
-                        weatherData: weatherData,
-                        calendarData: calendarData,
-                        pokemonData: pokemonData,
-                        deviceStats: deviceStats
-                    }
-                };
-            }
-
-            return component;
+        const { canvas } = await generateDashboard(layout, {
+            services: this.services,
+            deviceStats,
+            showGrid,
+            log: (msg, level = 'INFO') => this.log(msg, level)
         });
 
-        return enrichedConfig;
-    }
+        const imageBuffer = canvas.toBuffer('image/png', {
+            compressionLevel: 9,
+            filters: canvas.PNG_FILTER_NONE
+        });
 
-    /**
-     * Generate dashboard image buffer using DashboardEngine
-     */
-    async generateDashboardBuffer(layout = 'weather', deviceStats = null) {
-        try {
-            this.log(`Generating dashboard with layout: ${layout}`);
-
-            // Load layout configuration
-            const layoutPath = path.join(__dirname, 'layouts', `${layout}.json`);
-            let layoutConfig;
-
-            try {
-                const layoutData = fs.readFileSync(layoutPath, 'utf8');
-                layoutConfig = JSON.parse(layoutData);
-            } catch (error) {
-                this.log(`Layout ${layout} not found, using weather layout`, 'WARN');
-                const weatherLayoutPath = path.join(__dirname, 'layouts', 'weather.json');
-                const weatherLayoutData = fs.readFileSync(weatherLayoutPath, 'utf8');
-                layoutConfig = JSON.parse(weatherLayoutData);
-            }
-
-            // Get weather data
-            const weather = await this.weatherService.getFormattedWeather();
-
-            // Get calendar data if layout has calendar component
-            let calendarData = null;
-            const fullCanvasTypes = ['watch-face', 'brutalist', 'swiss-poster'];
-            const hasCalendarComponent = layoutConfig.components.some(comp => comp.type === 'calendar' || fullCanvasTypes.includes(comp.type));
-            if (hasCalendarComponent) {
-                try {
-                    calendarData = await this.calendarService.getFormattedCalendar();
-                    this.log(`Calendar: ${calendarData.today.length} today, ${calendarData.tomorrow.length} tomorrow (${calendarData.source})`);
-                } catch (error) {
-                    this.log(`Failed to get calendar data: ${error.message}`, 'WARN');
-                }
-            }
-
-            // Get Pokemon data if layout has pokemon-sprite component
-            // Pass weather + calendar context for contextual selection
-            let pokemonData = null;
-            const hasPokemonComponent = layoutConfig.components.some(comp => comp.type === 'pokemon-sprite' || fullCanvasTypes.includes(comp.type));
-            if (hasPokemonComponent) {
-                try {
-                    pokemonData = await this.pokemonService.getFormattedPokemon({
-                        weatherData: weather,
-                        calendarData: calendarData
-                    });
-                    this.log(`Pokemon: #${pokemonData.id} ${pokemonData.name} (${pokemonData.source}, reason: ${pokemonData.reason})`);
-                } catch (error) {
-                    this.log(`Failed to get Pokemon data: ${error.message}`, 'WARN');
-                }
-            }
-
-            // Get current time data
-            const now = new Date();
-            const timeData = {
-                time: now.toLocaleTimeString('en-US', {
-                    hour: 'numeric',
-                    minute: '2-digit',
-                    hour12: true,
-                    timeZone: 'America/Chicago'
-                }),
-                date: now.toLocaleDateString('en-US', {
-                    weekday: 'long',
-                    month: 'long',
-                    day: 'numeric',
-                    timeZone: 'America/Chicago'
-                }),
-                timestamp: now.toISOString()
-            };
-
-            // Create dashboard engine (use layout dimensions if specified)
-            const layoutWidth = (layoutConfig.dimensions && layoutConfig.dimensions.width) || 600;
-            const layoutHeight = (layoutConfig.dimensions && layoutConfig.dimensions.height) || 800;
-            const engine = new DashboardEngine({
-                width: layoutWidth,
-                height: layoutHeight,
-                backgroundColor: '#FFFFFF'
-            });
-
-            // Enrich layout with data
-            const enrichedConfig = this.enrichLayoutWithData(layoutConfig, weather, pokemonData, timeData, calendarData, deviceStats);
-
-            // Load layout and render
-            engine.loadLayout(enrichedConfig);
-            const canvas = await engine.render({
-                showGrid: false
-            });
-
-            // Convert to buffer
-            const imageBuffer = canvas.toBuffer('image/png', {
-                compressionLevel: 9,
-                filters: canvas.PNG_FILTER_NONE
-            });
-
-            this.log(`Dashboard generated: ${imageBuffer.length} bytes, applying e-ink optimization...`);
-
-            // Apply e-ink optimization using Python script
-            const optimizedBuffer = await this.optimizeForEink(imageBuffer);
-
-            this.log(`E-ink optimization complete: ${optimizedBuffer.length} bytes`);
-            return optimizedBuffer;
-
-        } catch (error) {
-            this.log(`Error generating dashboard: ${error.message}`, 'ERROR');
-            this.log(`Stack: ${error.stack}`, 'DEBUG');
-            throw error;
-        }
+        this.log(`Dashboard generated: ${imageBuffer.length} bytes, applying e-ink optimization...`);
+        const optimizedBuffer = await optimizeForEink(imageBuffer, (msg, level = 'INFO') => this.log(msg, level));
+        this.log(`E-ink optimization complete: ${optimizedBuffer.length} bytes`);
+        return optimizedBuffer;
     }
 
     async handleDashboardRequest(req, res, parsedUrl) {
@@ -377,9 +146,10 @@ class LocalDashboardServer {
                 // Get layout from query params or use default
                 const queryParams = parsedUrl.searchParams;
                 const layout = queryParams.get('layout') || this.layout;
+                const showGrid = queryParams.get('grid') === 'true';
 
                 // Generate new image
-                imageBuffer = await this.generateDashboardBuffer(layout, deviceStats);
+                imageBuffer = await this.generateDashboardBuffer(layout, deviceStats, showGrid);
 
                 // Cache the result
                 if (this.cacheEnabled) {
@@ -603,22 +373,18 @@ Kindle Dashboard Local Server (v2.0.0)
 Usage:
   node local-dashboard-server.js [options]
 
-Options:
-  --port <number>       Server port (default: 3000)
-  --host <string>       Server host (default: localhost)
-  --layout <string>     Default layout (default: weather)
+Options (env vars in server/.env override the built-in defaults):
+  --port <number>       Server port (default: PORT env or 3000)
+  --host <string>       Server host (default: HOST env or 0.0.0.0)
+  --layout <string>     Default layout (default: DEFAULT_LAYOUT env or wild-swiss)
   --no-cache            Disable image caching
-  --cache-timeout <ms>  Cache timeout in milliseconds (default: 60000)
+  --cache-timeout <ms>  Cache timeout in ms (default: CACHE_TTL_MS env or 60000)
   --help, -h            Show this help
 
-Layouts:
-  weather    Weather-focused dashboard (default)
-  compact    Compact layout with less spacing
-  minimal    Minimal information display
-  device     Device statistics focused
+Layouts: run 'npm run generate -- --list' to see all available layouts
 
 Examples:
-  node local-dashboard-server.js --host 0.0.0.0 --port 3000
+  node local-dashboard-server.js
   node local-dashboard-server.js --layout weather --no-cache
   node local-dashboard-server.js --cache-timeout 30000
 
@@ -637,13 +403,13 @@ Endpoints:
     for (let i = 0; i < args.length; i++) {
         switch (args[i]) {
             case '--port':
-                options.port = parseInt(args[++i]) || 3000;
+                options.port = parseInt(args[++i]) || config.PORT;
                 break;
             case '--host':
-                options.host = args[++i] || 'localhost';
+                options.host = args[++i] || config.HOST;
                 break;
             case '--layout':
-                options.layout = args[++i] || 'weather';
+                options.layout = args[++i] || config.DEFAULT_LAYOUT;
                 break;
             case '--no-cache':
                 options.cache = false;

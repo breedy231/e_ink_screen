@@ -10,7 +10,7 @@
 ##############################################################################
 
 DASHBOARD_DIR="/mnt/us/dashboard"
-LOOP_SCRIPT="$DASHBOARD_DIR/dashboard-loop.sh"
+START_SCRIPT="$DASHBOARD_DIR/start.sh"
 LOG_FILE="$DASHBOARD_DIR/logs/boot.log"
 PID_FILE="$DASHBOARD_DIR/dashboard-loop.pid"
 
@@ -53,22 +53,21 @@ while [ $waited -lt 60 ]; do
     waited=$((waited + 5))
 done
 
-# Kill any stale loop process
-if [ -f "$PID_FILE" ]; then
-    old_pid=$(cat "$PID_FILE")
-    if [ -n "$old_pid" ] && kill -0 "$old_pid" 2>/dev/null; then
-        kill "$old_pid" 2>/dev/null || true
-        sleep 1
+# Delegate to start.sh rather than launching the loop directly: start.sh
+# also stops the framework, prevents screen sleep, enables WiFi keep-alive
+# (keepAliveWirelessRadio + iwconfig power off), clears the screen, and
+# kills any stale loop. Launching the loop directly here used to skip the
+# WiFi keep-alive, so the radio slept on battery after every reboot.
+# Invoke via sh: /mnt/us is vfat, so exec bits don't survive there.
+if [ -f "$START_SCRIPT" ]; then
+    log_msg "Delegating to start.sh (framework stop, keep-alives, loop launch)..."
+    if sh "$START_SCRIPT"; then
+        log_msg "Dashboard mode started"
+    else
+        log_msg "ERROR: start.sh failed (rc=$?)"
+        exit 1
     fi
-    rm -f "$PID_FILE"
-fi
-
-# Launch dashboard loop
-if [ -x "$LOOP_SCRIPT" ]; then
-    log_msg "Launching dashboard loop..."
-    "$LOOP_SCRIPT" &
-    log_msg "Dashboard loop started (PID $!)"
 else
-    log_msg "ERROR: $LOOP_SCRIPT not found or not executable"
+    log_msg "ERROR: $START_SCRIPT not found"
     exit 1
 fi

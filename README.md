@@ -1,119 +1,75 @@
 # Kindle E-ink Dashboard
 
-A low-power e-ink dashboard for jailbroken Kindle Touch (4th Generation) displaying time, weather, device stats, and more.
+A low-power e-ink dashboard for a jailbroken Kindle Touch (4th Generation)
+showing time, weather, calendar, a daily Pokemon, and device status.
 
-## Dashboard Features
+A Raspberry Pi on the local network renders 600x800 grayscale PNGs; the
+Kindle fetches one every 15 minutes and displays it with `eips`. No cloud
+services involved.
 
-- **Real-time Weather**: Current conditions, 3-day forecast, temperature in Fahrenheit
-- **Device Statistics**: Battery level, temperature, WiFi status, memory usage, uptime
-- **Multiple Layouts**: Weather-focused, compact, minimal, and device-centric views
-- **Cloud Integration**: Serverless generation via Netlify Functions
-- **KUAL Menu**: Easy dashboard control through Kindle's KUAL interface
-- **Power Efficient**: Sleep/wake cycles optimized for battery life
+## Features
 
-## Quick Start
+- **Weather**: current conditions + forecast via Open-Meteo (no API key)
+- **Calendar**: today/tomorrow events from a private iCloud calendar feed
+- **Daily Pokemon**: context-aware pick (weather, calendar, holidays),
+  e-ink-optimized sprite, no repeats until all 1025 have appeared
+- **Device status**: battery level reported by the Kindle on each fetch,
+  with Discord alerts when it runs low
+- **Layout system**: JSON-defined grid layouts with reusable components
+- **Battery-aware**: fetches only during active hours (7am–10pm CT);
+  survives reboots via an upstart job
 
-### Local Testing
-```bash
-# Generate weather dashboard locally
-node generate-flexible-dashboard.js weather --test
-
-# Deploy to Kindle and test
-./generate-and-test.sh --deploy
-
-# Generate specific layouts
-node generate-flexible-dashboard.js compact
-node generate-flexible-dashboard.js minimal
-node generate-flexible-dashboard.js device
-```
-
-### Cloud Deployment
-```bash
-# Deploy to Netlify
-netlify deploy --prod
-
-# Configure Kindle for cloud updates
-scp kindle/config/cloud-config.conf root@kindle:/mnt/us/dashboard/config/
-scp kindle/fetch-dashboard-cloud.sh root@kindle:/mnt/us/dashboard/
-ssh root@kindle "/mnt/us/dashboard/setup-cloud-cron.sh"
-```
-
-### KUAL Integration
-```bash
-# Deploy KUAL extension for dashboard control
-./deploy-kual.sh
-```
-
-## Hardware Requirements
-
-- Jailbroken Kindle Touch (4th Generation)
-- KUAL installed for menu integration
-- SSH access configured
-- WiFi connectivity
-
-## Dashboard Layouts
-
-- **weather**: Weather-focused with 3-day forecast
-- **compact**: Dense layout with all information
-- **minimal**: Clean, simple time/date display
-- **device**: Device statistics and system monitoring
-
-## Testing & Deployment
-
-### Pre-Deployment Testing (Required)
-**Always run tests before deploying changes to Kindle:**
+## Quick start
 
 ```bash
-# Run comprehensive validation suite
-./pre-deployment-validation.sh
+# Install and test the server
+cd server && npm install && npm test
+
+# Render a layout locally with mock data (no network needed)
+node generate-flexible-dashboard.js wild-swiss --mock
+node generate-flexible-dashboard.js --list
+
+# Run the HTTP server
+cp .env.example .env    # fill in CALENDAR_URL etc.
+npm start               # then: curl localhost:3000/dashboard > dash.png
 ```
 
-All tests must pass (✓ ALL VALIDATIONS PASSED) before deployment.
+## Deployment
 
-### Individual Test Scripts
 ```bash
-# Test cron schedule logic and timezone coverage
-./test-schedule-logic.sh
+# Validate everything first (syntax, secrets, unit tests)
+./scripts/validate.sh
 
-# Test WiFi keep-alive implementation
-./test-wifi-commands.sh
+# Server → Raspberry Pi (rsync + systemd restart)
+./deploy-to-pi.sh
 
-# Test shell script syntax (POSIX compatibility)
-sh -n kindle/*.sh
+# Kindle scripts → device
+export KINDLE_PASSWORD='...'
+./deploy-kindle.sh --restart
 ```
 
-### Deployment
-```bash
-# Deploy e-ink schedule fix to Kindle
-./fix-eink-schedule.sh
+One-time setup: `pi/setup-auto-deploy.sh` on the Pi (systemd service, Python
+venv, auto-deploy timer); on the Kindle, install the upstart job
+`/etc/upstart/dashboard.conf` pointing at `/mnt/us/dashboard/on-boot.sh`.
 
-# If connectivity checks fail but SSH works manually
-./fix-eink-schedule.sh --skip-checks
-```
-
-**Common Issue**: If the deployment script fails with "Cannot reach Kindle" but `ssh root@192.168.50.104` works manually, use the `--skip-checks` flag. This happens when `ping` is not available or network restrictions block connectivity checks.
-
-**Why Testing Matters**: The automated test suite has already caught and prevented production bugs (e.g., timezone coverage issue that would have caused updates to fail during CST). Always run tests before deploying!
-
-For detailed testing documentation, see the "Automated Testing Suite" section in `CLAUDE.md`.
-
-## Technical Details
-
-- **Display**: 800x600px grayscale PNG optimized for e-ink
-- **Updates**: 5-minute intervals during active hours (7am-10pm Central Time)
-- **WiFi**: Keeps alive during dashboard mode for reliable updates when unplugged
-- **Weather**: Open-Meteo API with 30-minute caching
-- **Time Zone**: Central Time (America/Chicago)
-- **Authentication**: Token-based security for cloud endpoint
-
-## File Structure
+## Repository layout
 
 ```
-├── server/                 # Dashboard generation engine
-├── kindle/                 # Kindle-side scripts
-├── KUAL/                   # KUAL menu extension
-├── netlify/functions/      # Cloud deployment
-└── cache/                  # Weather and data caching
+├── server/            # Node.js render server + CLI (see server/config.js for env vars)
+│   ├── layouts/       # JSON layout definitions
+│   └── *.py           # Pillow-based e-ink optimizers (server/requirements.txt)
+├── kindle/            # POSIX shell scripts that run on the device
+│   └── config/        # dashboard.conf (server address, schedule)
+├── pi/                # Raspberry Pi provisioning + auto-deploy
+├── scripts/           # validate.sh — run before every deploy
+└── hardware/          # device notes
 ```
 
-For detailed setup and development instructions, see `CLAUDE.md`.
+## Documentation
+
+- `CLAUDE.md` — architecture, shell-compatibility rules, how to add a component
+- `PI_PRODUCTION_GUIDE.md` — operations runbook (services, logs, troubleshooting)
+- `DASHBOARD_LAYOUTS.md` — layout/grid system reference
+- `SECURITY_ROTATION.md` — credential rotation runbook
+- `CHANGELOG.md` — project history
+- `REVIEW_FINDINGS.md` — 2026-08 codebase review that shaped this structure

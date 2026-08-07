@@ -7,7 +7,7 @@
 
 - **Pi Server**: 192.168.50.163:3000
 - **Kindle Device**: 192.168.50.104
-- **Update Frequency**: Every 5 minutes (24/7)
+- **Update Frequency**: Every 15 minutes, 7am-10pm Central (dashboard-loop.sh)
 - **Service**: `kindle-dashboard.service` (systemd)
 
 ---
@@ -54,14 +54,14 @@ ssh root@192.168.50.104
 # Manual dashboard update
 /mnt/us/dashboard/fetch-dashboard.sh --verbose
 
-# Check auto-update logs
-tail -f /mnt/us/dashboard/logs/auto-update.log
+# Check loop logs (the persistent updater)
+tail -f /mnt/us/dashboard/logs/dashboard-loop.log
 
 # Check fetch logs
 tail -f /mnt/us/dashboard/logs/fetch.log
 
-# View current cron schedule
-crontab -l
+# Check the loop is running
+cat /mnt/us/dashboard/dashboard-loop.pid && ps | grep dashboard-loop | grep -v grep
 
 # Check sleep prevention status (should be 1 when dashboard is active)
 /usr/bin/lipc-get-prop com.lab126.powerd preventScreenSaver
@@ -75,27 +75,24 @@ crontab -l
 
 **Diagnosis:**
 ```bash
-# On Kindle - Check if cron is running
-ps aux | grep crond | grep -v grep
+# On Kindle - Check the loop is alive
+ps | grep dashboard-loop | grep -v grep
+cat /mnt/us/dashboard/dashboard-loop.pid
 
-# Check if cron entry exists
-crontab -l | grep fetch-dashboard
+# Check recent loop logs for errors
+tail -50 /mnt/us/dashboard/logs/dashboard-loop.log
 
-# Check recent auto-update logs for errors
-tail -50 /mnt/us/dashboard/logs/auto-update.log
+# Outside active hours (7am-10pm CT by default)? The loop skips fetches
+# on purpose - check ACTIVE_HOURS_* in config/dashboard.conf.
 ```
 
 **Solution:**
 ```bash
-# Restart crond
-killall crond
-sleep 5
-ps aux | grep crond
+# Restart dashboard mode (kills stale loop, stops framework, relaunches)
+sh /mnt/us/dashboard/stop.sh
+sh /mnt/us/dashboard/start.sh
 
-# Re-add cron entry if missing
-cat >> /etc/crontab/root << 'EOF'
-*/5 * * * * /mnt/us/dashboard/fetch-dashboard.sh --config /mnt/us/dashboard/config/dashboard.conf >> /mnt/us/dashboard/logs/auto-update.log 2>&1
-EOF
+# Or reboot - the upstart job /etc/upstart/dashboard.conf relaunches on boot
 ```
 
 ### Issue: Kindle goes to sleep
@@ -145,9 +142,9 @@ sudo systemctl restart kindle-dashboard
 sudo journalctl -u kindle-dashboard -n 100
 
 # If service won't start, check dependencies
-cd ~/dashboard-server/server
+cd ~/e_ink_screen/server
 npm list canvas
-~/dashboard-server/venv/bin/python3 -c "from PIL import Image; print('Pillow OK')"
+~/e_ink_screen/venv/bin/python3 -c "from PIL import Image; print('Pillow OK')"
 ```
 
 ### Issue: Weather data is stale
@@ -156,7 +153,7 @@ npm list canvas
 ```bash
 # On Pi - Clear weather cache
 ssh pi@192.168.50.163
-rm -f ~/dashboard-server/server/cache/weather_cache.json
+rm -f ~/e_ink_screen/server/cache/weather_cache.json
 
 # Force fresh weather fetch
 curl "http://localhost:3000/dashboard?refresh=true" -o /tmp/test.png
@@ -170,37 +167,22 @@ curl "http://localhost:3000/dashboard?refresh=true" -o /tmp/test.png
 
 ```bash
 # From Mac - Deploy updated code to Pi
-cd /Users/brendanreed/repos/e_ink_screen
+cd /path/to/e_ink_screen
 
-rsync -av \
-  --exclude 'node_modules' \
-  --exclude 'test_env' \
-  --exclude '*.log' \
-  --exclude 'temp' \
-  --exclude 'cache' \
-  server/ \
-  pi@192.168.50.163:~/dashboard-server/server/
+./deploy-to-pi.sh   # rsync + npm install + systemd restart
 
-# On Pi - Restart service
-ssh pi@192.168.50.163
-cd ~/dashboard-server/server
-npm install  # Only if dependencies changed
-sudo systemctl restart kindle-dashboard
+# Or rely on the auto-deploy timer: push to main and the Pi's
+# kindle-dashboard-updater service pulls and restarts within minutes.
 ```
 
 ### Update Kindle Scripts
 
 ```bash
 # From Mac - Deploy updated scripts
-cd /Users/brendanreed/repos/e_ink_screen
+cd /path/to/e_ink_screen
 
-scp kindle/start.sh root@192.168.50.104:/mnt/us/dashboard/
-scp kindle/stop.sh root@192.168.50.104:/mnt/us/dashboard/
-scp kindle/fetch-dashboard.sh root@192.168.50.104:/mnt/us/dashboard/
-
-# On Kindle - Set permissions
-ssh root@192.168.50.104
-chmod +x /mnt/us/dashboard/*.sh
+export KINDLE_PASSWORD='...'
+./deploy-kindle.sh --restart   # ships the full live script set
 ```
 
 ### Monitor System Health (24-hour check)
@@ -217,10 +199,10 @@ sudo journalctl -u kindle-dashboard --since "24 hours ago" | grep -i error | wc 
 
 # On Kindle - Check successful updates
 ssh root@192.168.50.104
-grep "completed successfully" /mnt/us/dashboard/logs/auto-update.log | tail -20
+grep "Update successful" /mnt/us/dashboard/logs/dashboard-loop.log | tail -20
 
 # Check error count
-grep ERROR /mnt/us/dashboard/logs/auto-update.log | tail -20
+grep -i error /mnt/us/dashboard/logs/dashboard-loop.log | tail -20
 ```
 
 ---
@@ -248,7 +230,7 @@ grep ERROR /mnt/us/dashboard/logs/auto-update.log | tail -20
 │  └──────────────────┘   │
 └─────────┬───────────────┘
           │ HTTP (26KB PNG)
-          │ Every 5 minutes
+          │ Every 15 minutes
           │
 ┌─────────▼───────────────┐
 │   Kindle Touch Device   │
@@ -275,14 +257,14 @@ grep ERROR /mnt/us/dashboard/logs/auto-update.log | tail -20
 ## Configuration Files
 
 ### Pi Server Config
-- **Location**: `~/dashboard-server/config.json`
+- **Env file**: `~/e_ink_screen/server/.env` (loaded by systemd EnvironmentFile)
 - **Systemd**: `/etc/systemd/system/kindle-dashboard.service`
-- **Server Code**: `~/dashboard-server/server/`
-- **Python Venv**: `~/dashboard-server/venv/`
+- **Server Code**: `~/e_ink_screen/server/`
+- **Python Venv**: `~/e_ink_screen/venv/`
 
 ### Kindle Config
 - **Main Config**: `/mnt/us/dashboard/config/dashboard.conf`
-- **Cron File**: `/etc/crontab/root`
+- **Boot job**: `/etc/upstart/dashboard.conf` (execs on-boot.sh)
 - **Scripts**: `/mnt/us/dashboard/*.sh`
 - **Logs**: `/mnt/us/dashboard/logs/`
 
@@ -318,7 +300,7 @@ time curl -o /dev/null http://192.168.50.163:3000/dashboard
 
 ```bash
 # From Mac - Backup Pi configuration
-ssh pi@192.168.50.163 "tar czf ~/dashboard-backup-$(date +%Y%m%d).tar.gz ~/dashboard-server"
+ssh pi@192.168.50.163 "tar czf ~/dashboard-backup-$(date +%Y%m%d).tar.gz ~/e_ink_screen/server/.env ~/e_ink_screen/cache"
 scp pi@192.168.50.163:~/dashboard-backup-*.tar.gz ~/backups/
 
 # Backup Kindle configuration
@@ -350,8 +332,6 @@ tar xzf /tmp/kindle-dashboard-backup.tar.gz
 - [ ] Implement calendar integration (Google Calendar)
 - [ ] Add RSS news feed widget
 - [ ] Create weather alerts/notifications
-- [ ] Optimize cron schedule to active hours only (7am-10pm)
-- [ ] Add Netlify cloud fallback for Pi downtime
 - [ ] Implement dashboard themes/layouts selector
 - [ ] Add task list integration (Todoist, etc.)
 

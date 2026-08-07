@@ -1,12 +1,12 @@
 {
-  "name": "kindle-dashboard-generator",
+  "name": "kindle-dashboard-server",
   "version": "1.0.0",
-  "description": "E-ink dashboard image generator for Kindle Touch",
-  "main": "generate-dashboard.js",
+  "description": "E-ink dashboard server and image generator for Kindle Touch",
+  "main": "local-dashboard-server.js",
   "scripts": {
-    "start": "node generate-dashboard.js",
-    "dev": "node generate-dashboard.js --watch",
-    "test": "node generate-dashboard.js --test"
+    "start": "node local-dashboard-server.js",
+    "generate": "node generate-flexible-dashboard.js",
+    "test": "node pokemon-service.test.js"
   },
   "keywords": [
     "kindle",
@@ -20,9 +20,6 @@
     "canvas": "^2.11.2",
     "date-fns": "^2.30.0",
     "node-ical": "^0.25.5"
-  },
-  "devDependencies": {
-    "nodemon": "^3.0.1"
   },
   "engines": {
     "node": ">=14.0.0"
