@@ -5,55 +5,68 @@ running, dashboard loop dead). Written to be executed by a Claude Code
 session **on the dev machine** (the cloud sandbox cannot reach the LAN),
 but works equally as a human checklist.
 
-**Known failure class**: the pre-remediation `on-boot.sh` launched the loop
-without WiFi keep-alive, so after prolonged sleep/reboot the radio slept on
-battery, fetches died, and the device eventually fell back to the framework
-UI. The fixed scripts (2026-08 remediation) close this — recovery should
-**deploy them**, not just restart the old ones.
+## Known failure classes
+
+Check the logs before assuming any of these — the 2026-08-07 incident matched
+the second, not the first, and the first was the only one documented at the time.
+
+**1. WiFi radio sleep.** The pre-remediation `on-boot.sh` launched the loop
+without WiFi keep-alive, so the radio could sleep on battery and fetches died.
+Signature: repeated `WiFi timeout` / `not reachable` in `loop.log`.
+
+> Caveat: `keepAliveWirelessRadio` **does not exist on Kindle Touch** — powerd
+> returns `lipcErrNoSuchProperty`, and `start.sh` has always logged that. So
+> "deploy the fixed scripts" does *not* close this gap on this hardware; only
+> the driver-level `iwconfig power off` applies. Treat a keep-alive diagnosis
+> with suspicion on Touch.
+
+**2. Battery exhaustion.** The device simply runs flat and powers off.
+Signature: `loop.log` ends *cleanly* mid-cycle — a successful fetch followed by
+`Sleeping Ns (next fetch ~HH:MM)` that never returns — with no error at all, and
+a descending `battery=N` in the fetch URLs over the preceding cycles. Seen
+2026-06-18 (`5 → 4 → 3%`). Nothing in the scripts prevents this; it needs a
+charger. Confirm the low-battery Discord alert is actually configured
+(`DISCORD_WEBHOOK_URL` in `server/.env` on the Pi).
+
+**3. Boot job never fires.** The device rebooted but the dashboard did not come
+back, leaving the stock library view. Signature: `uptime` is short, and
+`logs/boot.log` is **absent or stale**. See §4b — the trigger event matters.
 
 ## 0. Prerequisites (dev machine)
 
-- This repo checked out, on `main` **after PR #8 is merged**
-  (`git pull origin main`). If PR #8 is not merged yet, work from the
-  `claude/eink-codebase-review-bvxjn0` branch instead — the fixed Kindle
-  scripts live there.
+- This repo checked out on `main` (`git pull origin main`).
 - `export KINDLE_PASSWORD='...'` (the Kindle root password — post-rotation
-  value; see `SECURITY_ROTATION.md`).
+  value; see `SECURITY_ROTATION.md`). Note this must be exported in the *same*
+  shell that runs the commands; an agent driving this runbook spawns its own
+  shells and will not inherit an export from an interactive terminal.
 - `sshpass` installed (`brew install sshpass` / `apt install sshpass`).
 - On the same LAN as the devices.
 
 ## 1. Network access
 
-Direct SSH from the dev machine to the Kindle fails (key auth). Route
-through the Pi:
-
-```bash
-# Pi (key auth, should just work)
-ssh pi@192.168.50.163
-
-# Kindle via the Pi as jump host, from the dev machine:
-sshpass -p "$KINDLE_PASSWORD" ssh \
-  -o ProxyJump=pi@192.168.50.163 \
-  -o PreferredAuthentications=password -o PubkeyAuthentication=no \
-  -o StrictHostKeyChecking=no \
-  root@192.168.50.104
-
-# If ProxyJump misbehaves, two hops manually:
-#   ssh pi@192.168.50.163
-#   then on the Pi: ssh root@192.168.50.104   (enter password)
-```
-
-Non-interactive command form used throughout below:
+**The Kindle accepts direct password SSH from the dev machine.** No jump host
+is needed, and `deploy-kindle.sh` connects directly too. Use this form
+throughout:
 
 ```bash
 kindle() {
   sshpass -p "$KINDLE_PASSWORD" ssh \
-    -o ProxyJump=pi@192.168.50.163 \
     -o PreferredAuthentications=password -o PubkeyAuthentication=no \
     -o StrictHostKeyChecking=no \
     root@192.168.50.104 "$@"
 }
 ```
+
+Notes:
+
+- The Kindle does **not** answer ICMP. `ping` failing means nothing; test with
+  `nc -z 192.168.50.104 22` instead.
+- Pi key auth is **not** reliably set up (`Permission denied (publickey,password)`
+  from at least one dev machine, with an empty ssh-agent). Only §2a needs the
+  Pi, and the `/health` check there is plain HTTP. Route through the Pi as a
+  jump host (`-o ProxyJump=pi@192.168.50.163`) only if direct SSH ever fails.
+- `/sbin` is not on the device's `PATH` (`PATH=/usr/bin:/bin`) — call
+  privileged binaries by full path, e.g. `/sbin/reboot`.
 
 ## 2. Diagnose (read-only — do this BEFORE restarting anything)
 
@@ -72,7 +85,10 @@ kindle-dashboard`) — the Kindle can't recover against a dead server.
 
 ```bash
 # Is the loop alive? (library view showing usually means: no)
-kindle 'cat /mnt/us/dashboard/dashboard-loop.pid 2>/dev/null; ps | grep dashboard-loop | grep -v grep'
+# NOTE: busybox's plain `ps` prints no command line, so `ps | grep
+# dashboard-loop` always looks empty — a false negative. Use `ps aux`.
+kindle 'cat /mnt/us/dashboard/dashboard-loop.pid 2>/dev/null; ps aux | grep dashboard-loop | grep -v grep'
+kindle 'pid=$(cat /mnt/us/dashboard/dashboard-loop.pid 2>/dev/null); kill -0 "$pid" 2>/dev/null && echo ALIVE || echo DEAD'
 
 # SAVE the log tails locally before anything restarts/rotates them —
 # this is the root-cause evidence
@@ -93,10 +109,17 @@ kindle 'ls -la /etc/upstart/dashboard.conf 2>/dev/null; cat /etc/upstart/dashboa
 kindle 'grep -l "Delegating to start.sh" /mnt/us/dashboard/on-boot.sh 2>/dev/null && echo FIXED-SCRIPTS || echo OLD-SCRIPTS'
 ```
 
-Interpret: uptime tells you whether the device rebooted (battery died) or
-stayed up while the loop died. `boot.log` shows whether on-boot ran after a
-reboot. `OLD-SCRIPTS` + WiFi dead in the loop log = the known keep-alive
-bug.
+Interpret, against the failure classes at the top:
+
+- **`loop.log` ends cleanly** on a `Sleeping Ns` line with a descending
+  `battery=N` before it → class 2, battery exhaustion. The device powered off.
+  Do not go looking for a WiFi fault; there isn't one.
+- **`loop.log` shows repeated WiFi/reachability errors** → class 1. But check
+  whether `keepAliveWirelessRadio` is even supported (it is not on Touch).
+- **Short `uptime` and no/stale `boot.log`** → class 3, the boot job never ran.
+  Note the *old* job never called `on-boot.sh` at all, so on a device that has
+  not been fixed yet, an absent `boot.log` proves nothing on its own.
+- `date` vs. the last log timestamp gives you the outage window.
 
 ## 3. Recover — deploy the fixed scripts, then restart dashboard mode
 
@@ -123,10 +146,13 @@ kindle 'sh /mnt/us/dashboard/stop.sh; sh /mnt/us/dashboard/start.sh'
 ### 4a. Immediately
 
 ```bash
-kindle 'cat /mnt/us/dashboard/dashboard-loop.pid; ps | grep dashboard-loop | grep -v grep'
+kindle 'cat /mnt/us/dashboard/dashboard-loop.pid; ps aux | grep dashboard-loop | grep -v grep'
+kindle 'lipc-get-prop com.lab126.powerd preventScreenSaver'   # expect 1
 kindle 'tail -20 /mnt/us/dashboard/logs/dashboard-loop.log'
 # and look at the physical screen: dashboard, not library
 ```
+
+(`ps aux`, not `ps` — see §2b.)
 
 Then after ~15–16 minutes, confirm a second fetch landed:
 
@@ -136,38 +162,65 @@ kindle 'tail -5 /mnt/us/dashboard/logs/fetch.log'
 
 ### 4b. Boot job (the thing that makes recovery automatic next time)
 
-`/etc/upstart/dashboard.conf` must exist and exec the on-boot script. If it
-was missing in step 2b, install it (rootfs is read-only — remount around
-the edit):
+The canonical job is version-controlled at `kindle/upstart/dashboard.conf`.
+Install or repair it with:
 
 ```bash
-kindle 'mount -o remount,rw / && cat > /etc/upstart/dashboard.conf << "UPSTART_EOF"
-start on started lab126_gui
-stop on stopping lab126_gui
-script
-exec sh /mnt/us/dashboard/on-boot.sh >> /mnt/us/dashboard/logs/boot.log 2>&1
-end script
-UPSTART_EOF
-mount -o remount,ro /'
+./deploy-kindle.sh --install-boot-job
 ```
 
-(If an existing job differs, prefer keeping its `start on` stanza — it was
-working — and just ensure the exec line is `sh /mnt/us/dashboard/on-boot.sh`.)
+That backs up any existing job to `/mnt/us/dashboard/dashboard.conf.bak` and
+handles the read-only rootfs remount. Verify:
+
+```bash
+kindle 'cat /etc/upstart/dashboard.conf'
+kindle 'mount | grep /dev/root'     # expect (ro,...) again afterwards
+```
+
+**Two rules that job encodes — do not "fix" them back:**
+
+- **Trigger on `started lab126_gui`, never `started cron`.** crond starts
+  *before* the FUSE mount providing `/mnt/us` (measured: crond pid 636, `fsp`
+  pid 943). A cron-triggered job runs while `/mnt/us/dashboard` does not exist,
+  so its redirect fails and the script block dies leaving no loop and no log
+  whatsoever. An earlier revision of this runbook advised preserving an
+  existing job's `start on` stanza on the grounds that "it was working" — that
+  premise was false, and following it produced a failed reboot test.
+- **Stop on `stopping system`, never `stopping lab126_gui`.** `start.sh` stops
+  the framework deliberately; pairing that with a `lab126_gui` stop condition
+  makes the job kill the loop it just launched.
+
+Also note `/mnt/base-us` is `vfat,noexec` under a FUSE overlay, so exec bits
+there are meaningless — the job must invoke `sh <script>`, never `exec <script>`.
 
 ### 4c. Reboot test (the real proof)
 
 ```bash
-kindle 'reboot'
-# wait ~2-3 minutes (on-boot sleeps 30s + waits for WiFi), then:
-kindle 'ps | grep dashboard-loop | grep -v grep && tail -5 /mnt/us/dashboard/logs/boot.log'
+kindle '/sbin/reboot'        # NOT `reboot` — /sbin is not on the device PATH
 ```
 
-The dashboard should come back on its own. If it does, the original
-failure mode is closed.
+Confirm the device *actually* rebooted before judging the result — SSH stays
+briefly answerable after the command, so a "port 22 is open" check gives a
+false positive. Poll uptime instead:
+
+```bash
+kindle 'cut -d. -f1 /proc/uptime'    # small number = genuinely rebooted
+```
+
+Then wait ~3 minutes (on-boot sleeps 30s, then waits for WiFi) and check:
+
+```bash
+kindle 'ps aux | grep dashboard-loop | grep -v grep'
+kindle 'lipc-get-prop com.lab126.powerd preventScreenSaver'   # expect 1
+kindle 'tail -15 /mnt/us/dashboard/logs/boot.log'
+```
+
+`boot.log` existing and populated is the signal that the boot job fired at all.
+The dashboard should come back on its own.
 
 ## 5. Report
 
-Summarize from the saved `/tmp/kindle-recovery/*` logs: what killed the
-loop (WiFi death? battery/reboot with no boot job? crash?), what was
-deployed, and the verification results. If the root cause is NOT the known
-keep-alive bug, file the evidence — don't guess.
+Summarize from the saved `/tmp/kindle-recovery/*` logs: which failure class
+matched (see the top of this file), what was deployed, and the verification
+results. Match the evidence to a class rather than assuming the first one —
+don't guess. If it fits none of them, file the logs.

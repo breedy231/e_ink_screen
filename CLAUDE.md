@@ -110,10 +110,20 @@ type foo >/dev/null 2>&1              # command existence check
 case "$s" in *"?"*) ... ;; esac       # pattern matching ([ ] can't glob)
 ```
 
-Two device quirks that shape the scripts:
-- `/mnt/us` is **vfat** — exec bits don't persist, so scripts invoke each
-  other as `sh "$script"` and gate on `-f`, never `-x`.
+Device quirks that shape the scripts:
+- `/mnt/us` is a **FUSE overlay (`fuse.fsp`) on top of `vfat,noexec`
+  `/mnt/base-us`** — exec bits are meaningless there, so scripts invoke each
+  other as `sh "$script"` and gate on `-f`, never `-x`. A bare
+  `exec /mnt/us/...` fails silently; this broke the upstart boot job.
 - busybox `wget` only takes short options (`-q -O`) and has no `--timeout`.
+- busybox plain `ps` prints no command line — use `ps aux` when checking
+  whether the loop is running, or `ps | grep` will look like a false negative.
+- `/sbin` is not on the device's `PATH` (`PATH=/usr/bin:/bin`). Use
+  `/sbin/reboot`, not `reboot`.
+- The device does not answer ICMP; `ping` failing says nothing. Use
+  `nc -z <ip> 22`.
+- `keepAliveWirelessRadio` does not exist on Kindle Touch powerd
+  (`lipcErrNoSuchProperty`). Only `iwconfig <if> power off` holds the radio up.
 
 Verify before deploy: `sh -n kindle/*.sh` (or just run `./scripts/validate.sh`).
 
@@ -150,6 +160,7 @@ cd server && npm start                # then: curl localhost:3000/dashboard
 # Deploy
 ./deploy-to-pi.sh                     # server → Pi (rsync + systemd restart)
 KINDLE_PASSWORD=... ./deploy-kindle.sh --restart   # scripts → Kindle
+KINDLE_PASSWORD=... ./deploy-kindle.sh --install-boot-job  # upstart job (writes rootfs)
 ```
 
 Always run `./scripts/validate.sh` before deploying, and validate visual
