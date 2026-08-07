@@ -174,11 +174,19 @@ white), no gradients. The server's `optimize-for-eink.py` pass
 ## Device & network reference
 
 - **Kindle Touch 4th gen**: 600x800 e-ink, 16-level grayscale, jailbroken
-  with KUAL + SSH. IP `192.168.50.104`. Direct SSH from the dev machine
-  fails (key auth); use the Pi as a jump host with sshpass. Root password:
+  with KUAL + SSH. IP `192.168.50.104`. **Direct password SSH from the dev
+  machine works** — no jump host needed, and `deploy-kindle.sh` connects
+  directly. Force password auth (`-o PreferredAuthentications=password -o
+  PubkeyAuthentication=no`); key auth is not set up. Root password:
   `KINDLE_PASSWORD` env — never committed (it was once; see
   `SECURITY_ROTATION.md` for the rotation runbook).
-- **Raspberry Pi**: `192.168.50.163`, `ssh pi@192.168.50.163`. Server runs
-  from the git checkout under the `kindle-dashboard` systemd service (see
-  `pi/setup-auto-deploy.sh`).
+- **Raspberry Pi**: `192.168.50.163`. Server runs from the git checkout under
+  the `kindle-dashboard` systemd service (see `pi/setup-auto-deploy.sh`).
+  `ssh pi@192.168.50.163` fails with `Permission denied (publickey,password)`
+  from at least one dev machine (empty ssh-agent, no key installed) — unblock
+  that before relying on server-side debugging. `/health` on port 3000 is
+  plain HTTP and needs no SSH. `kindle-dashboard-updater.timer` pulls `main`
+  daily at 06:00 (`Persistent=true`, up to 300s jitter) and restarts the
+  service only if the checkout actually changed, so a long `/health` uptime
+  just means no upstream commits — not a broken timer.
 - Ops runbook: `PI_PRODUCTION_GUIDE.md`. Layout system: `DASHBOARD_LAYOUTS.md`.
