@@ -8,7 +8,11 @@
 # Auth: export KINDLE_PASSWORD before running (never hardcoded).
 # Requires sshpass or expect on the dev machine.
 #
-# Usage: ./deploy-kindle.sh [--host IP] [--restart]
+# Usage: ./deploy-kindle.sh [--host IP] [--restart] [--install-boot-job]
+#
+# --install-boot-job writes kindle/upstart/dashboard.conf to
+# /etc/upstart/dashboard.conf. That touches the read-only rootfs, so it is
+# opt-in rather than part of every deploy.
 
 set -e
 
@@ -17,12 +21,14 @@ KINDLE_HOST="${KINDLE_HOST:-192.168.50.104}"
 KINDLE_USER="${KINDLE_USER:-root}"
 TARGET_DIR="/mnt/us/dashboard"
 RESTART=false
+INSTALL_BOOT_JOB=false
 
 while [ $# -gt 0 ]; do
     case $1 in
-        --host)    KINDLE_HOST="$2"; shift 2 ;;
-        --restart) RESTART=true; shift ;;
-        *) echo "Unknown option: $1 (usage: $0 [--host IP] [--restart])"; exit 1 ;;
+        --host)             KINDLE_HOST="$2"; shift 2 ;;
+        --restart)          RESTART=true; shift ;;
+        --install-boot-job) INSTALL_BOOT_JOB=true; shift ;;
+        *) echo "Unknown option: $1 (usage: $0 [--host IP] [--restart] [--install-boot-job])"; exit 1 ;;
     esac
 done
 
@@ -94,6 +100,24 @@ run_scp "$SCRIPT_DIR/$CONFIG_FILE" "$TARGET_DIR/config/dashboard.conf"
 # and the exec bit is not relied upon.
 run_ssh "chmod +x $TARGET_DIR/*.sh 2>/dev/null || true"
 
+if [ "$INSTALL_BOOT_JOB" = "true" ]; then
+    BOOT_JOB="$SCRIPT_DIR/kindle/upstart/dashboard.conf"
+    [ -f "$BOOT_JOB" ] || { echo "ERROR: missing kindle/upstart/dashboard.conf"; exit 1; }
+    echo "Installing boot job to /etc/upstart/dashboard.conf..."
+    # Stage on /mnt/us (writable), back up any existing job, then remount the
+    # rootfs rw only for the copy itself and put it straight back to ro.
+    run_scp "$BOOT_JOB" "$TARGET_DIR/dashboard.conf"
+    run_ssh "set -e
+        if [ -f /etc/upstart/dashboard.conf ]; then
+            cp /etc/upstart/dashboard.conf $TARGET_DIR/dashboard.conf.bak
+            echo '  backed up existing job to $TARGET_DIR/dashboard.conf.bak'
+        fi
+        mount -o remount,rw /
+        cp $TARGET_DIR/dashboard.conf /etc/upstart/dashboard.conf
+        mount -o remount,ro /
+        echo '  installed; rootfs remounted ro'"
+fi
+
 if [ "$RESTART" = "true" ]; then
     echo "Restarting dashboard mode..."
     run_ssh "sh $TARGET_DIR/stop.sh; sh $TARGET_DIR/start.sh"
@@ -101,7 +125,11 @@ fi
 
 echo ""
 echo "Deploy complete."
-echo "Reminders (one-time, on-device):"
-echo "  - Boot auto-start: /etc/upstart/dashboard.conf must exec 'sh $TARGET_DIR/on-boot.sh'"
-echo "    (remount rootfs first: mount -o remount,rw / ... mount -o remount,ro /)"
+if [ "$INSTALL_BOOT_JOB" != "true" ]; then
+    echo "Reminders (one-time, on-device):"
+    echo "  - Boot auto-start: ./deploy-kindle.sh --install-boot-job"
+    echo "    (or check /etc/upstart/dashboard.conf execs 'sh $TARGET_DIR/on-boot.sh')"
+fi
 echo "  - Manual start/stop: sh $TARGET_DIR/start.sh | sh $TARGET_DIR/stop.sh"
+echo "  - Verify the loop with 'ps aux | grep dashboard-loop' (busybox plain"
+echo "    'ps' shows no cmdline and will look like a false negative)"

@@ -182,11 +182,17 @@ keep_wifi_alive() {
             log_warn "Failed to force-enable WiFi via lipc-set-prop"
         fi
 
-        # Keep wireless radio active (prevents sleep)
-        if /usr/bin/lipc-set-prop com.lab126.powerd keepAliveWirelessRadio 1; then
+        # Keep wireless radio active (prevents sleep).
+        #
+        # Not supported on Kindle Touch: powerd has no keepAliveWirelessRadio
+        # property there and fails with lipcErrNoSuchProperty. That is expected
+        # rather than a fault, so log it at info — as a warning it fired on
+        # every single start and masked real ones. The driver-level
+        # `iwconfig power off` below is what actually holds the radio up here.
+        if /usr/bin/lipc-set-prop com.lab126.powerd keepAliveWirelessRadio 1 2>/dev/null; then
             log_info "WiFi keep-alive enabled successfully"
         else
-            log_warn "Failed to enable WiFi keep-alive"
+            log_info "WiFi keep-alive property unavailable (expected on Kindle Touch); using driver-level power off instead"
         fi
     else
         log_warn "lipc-set-prop command not found - WiFi may sleep during power saving"
