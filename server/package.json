@@ -6,8 +6,8 @@
   "scripts": {
     "start": "node local-dashboard-server.js",
     "generate": "node generate-flexible-dashboard.js",
-    "test": "node pokemon-service.test.js && node battery-alert.test.js && node staleness-alert.test.js && node trmnl-service.test.js",
-    "test:nodeps": "node battery-alert.test.js && node staleness-alert.test.js"
+    "test": "node pokemon-service.test.js && node battery-alert.test.js && node staleness-alert.test.js && node bedtime-alert.test.js && node trmnl-service.test.js",
+    "test:nodeps": "node battery-alert.test.js && node staleness-alert.test.js && node bedtime-alert.test.js"
   },
   "keywords": [
     "kindle",

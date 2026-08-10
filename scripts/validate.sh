@@ -126,6 +126,11 @@ if [ "$RUN_NPM" = "1" ]; then
         else
             fail "staleness-alert.test.js failed — run: cd server && node staleness-alert.test.js"
         fi
+        if (cd server && node bedtime-alert.test.js >/dev/null 2>&1); then
+            pass "bedtime-alert.test.js"
+        else
+            fail "bedtime-alert.test.js failed — run: cd server && node bedtime-alert.test.js"
+        fi
         echo "  - canvas-dependent tests skipped (cd server && npm install)"
     else
         echo "  - node/npm missing, skipping"
