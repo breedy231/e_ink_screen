@@ -7,6 +7,7 @@ const { generateDashboard, optimizeForEink, createServices } = require('./genera
 const { sendDiscordNotification } = require('./notify');
 const { BatteryAlertState } = require('./battery-alert');
 const { StalenessAlertState } = require('./staleness-alert');
+const { BedtimeAlertState } = require('./bedtime-alert');
 
 /**
  * Local HTTP Server for Kindle Dashboard
@@ -29,6 +30,12 @@ class LocalDashboardServer {
             thresholdMs: config.STALE_THRESHOLD_MS,
             activeHoursStart: config.ACTIVE_HOURS_START,
             activeHoursEnd: config.ACTIVE_HOURS_END,
+            timezone: config.TIMEZONE
+        });
+        this.bedtimeAlert = new BedtimeAlertState({
+            safeLevel: config.BEDTIME_SAFE_LEVEL,
+            windowStartHour: config.BEDTIME_WINDOW_START,
+            windowEndHour: config.ACTIVE_HOURS_END,
             timezone: config.TIMEZONE
         });
         this.discordWebhookUrl = config.DISCORD_WEBHOOK_URL;
@@ -62,6 +69,35 @@ class LocalDashboardServer {
             fields: [
                 { name: 'Battery', value: `${level}%`, inline: true },
                 { name: 'Severity', value: severity, inline: true },
+                { name: 'Time', value: new Date().toLocaleString('en-US', { timeZone: config.TIMEZONE }), inline: true }
+            ]
+        }).then(() => {
+            this.log('Discord notification sent');
+        }).catch((err) => {
+            this.log(`Discord notification error: ${err.message}`, 'ERROR');
+        });
+    }
+
+    checkBedtimeAndNotify(batteryLevel, chargingStatus) {
+        if (!this.discordWebhookUrl) return;
+
+        // Bedtime charge check: once per evening in the window before active
+        // hours end, if battery is still low, send a reminder to plug it in
+        // before it dies overnight.
+        const decision = this.bedtimeAlert.evaluate(batteryLevel, chargingStatus, Date.now());
+        if (!decision.notify) return;
+
+        const { level } = decision;
+
+        this.log(`Bedtime check: battery ${level}% below safe overnight level — sending Discord notification`, 'WARN');
+
+        sendDiscordNotification(this.discordWebhookUrl, {
+            title: 'Kindle Needs Charging Tonight',
+            description: `Battery at **${level}%** going into the overnight window. It will likely die before morning — put it on the charger tonight.`,
+            color: 0xE67E22, // orange
+            fields: [
+                { name: 'Battery', value: `${level}%`, inline: true },
+                { name: 'Safe level', value: `${config.BEDTIME_SAFE_LEVEL}%`, inline: true },
                 { name: 'Time', value: new Date().toLocaleString('en-US', { timeZone: config.TIMEZONE }), inline: true }
             ]
         }).then(() => {
@@ -200,6 +236,7 @@ class LocalDashboardServer {
             const chargingStatus = parsedUrl.searchParams.get('charging');
             if (batteryLevel) {
                 this.checkBatteryAndNotify(batteryLevel, chargingStatus);
+                this.checkBedtimeAndNotify(batteryLevel, chargingStatus);
             }
 
             // Construct deviceStats from query params

@@ -46,6 +46,12 @@ module.exports = {
     ACTIVE_HOURS_START: parseInt(process.env.ACTIVE_HOURS_START, 10) || 7,
     ACTIVE_HOURS_END: parseInt(process.env.ACTIVE_HOURS_END, 10) || 22,
 
+    // Bedtime low-battery alert — fires once per evening if battery is below
+    // safeLevel (default 40%) during the bedtime window (default one hour before
+    // active hours end, e.g. 21:00-22:00). The window end is ACTIVE_HOURS_END.
+    BEDTIME_SAFE_LEVEL: parseInt(process.env.BEDTIME_SAFE_LEVEL, 10) || 40,
+    BEDTIME_WINDOW_START: parseInt(process.env.BEDTIME_WINDOW_START, 10) || 21,
+
     // Display
     CANVAS_WIDTH: 600,
     CANVAS_HEIGHT: 800,
