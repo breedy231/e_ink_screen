@@ -201,6 +201,33 @@ white), no gradients. The server's `optimize-for-eink.py` pass
   `/health` on port 3000 is plain HTTP and needs no SSH.
 - Ops runbook: `PI_PRODUCTION_GUIDE.md`. Layout system: `DASHBOARD_LAYOUTS.md`.
 
+## Second screen — kitchen "Live Paper" (planned, 2026-08-16)
+
+A second e-ink screen is planned for the kitchen: a daily "paper" (2–3
+time-of-day faces) complementing v0's live status. **Start at
+`KITCHEN_HANDOFF.md`**, then `KITCHEN_SCREEN_PLAN.md` for the design and the
+jailbreak runbook.
+
+Device is confirmed: **Kindle Paperwhite 3** (7th gen, `DP75SDI`, serial
+`G090…`) on **firmware 5.12.3** — jailbreakable via WinterBreak2. Render target
+is **1072x1448 portrait**, versus v0's 600x800.
+
+Two things to know before touching server code:
+
+- **Alert state is now per-device** (`server/device-alerts.js`,
+  `DeviceAlertRegistry`). Previously one shared set of state machines meant any
+  second device polling `/dashboard` would continuously re-arm v0's staleness
+  alert and let it die silently. Devices are identified by `?device=`; an
+  absent param means v0, so the existing Kindle is unaffected.
+  `MONITORED_DEVICES` in `config.js` defaults to `v0` — add `kitchen` only once
+  that screen actually polls, or it goes stale immediately and alerts on every
+  check.
+- **The kitchen screen is deliberately NOT a TRMNL/Liquid recipe.** BYOS
+  renders landscape markup then rotates the bitmap, so it cannot produce a
+  portrait page, and 800x480 letterboxed onto a 1072x1448 panel wastes most of
+  it. The kitchen renders HTML→PNG at native resolution on the Mac. v0 stays
+  TRMNL/landscape; they diverge at the render layer on purpose.
+
 ## TRMNL integration (optional)
 
 The dashboard can alternate with screens from a self-hosted TRMNL BYOS
@@ -209,7 +236,133 @@ layout. `server/trmnl-service.js` polls the BYOS `/api/display` endpoint the
 same way real TRMNL firmware would and downloads the rendered PNG; the
 `trmnl` component in `dashboard-engine.js` rotates it into the portrait
 canvas via the `layouts/trmnl.json` layout. It's entirely additive and off
-by default — `TRMNL_MODE` (`off` / `alternate` / `only`) in `config.js`
-gates whether `local-dashboard-server.js` ever resolves to that layout, and
-an unconfigured or unreachable BYOS instance falls back to the normal
-layout, never a broken image. See `TRMNL_SETUP.md` for setup.
+by default in the code — `TRMNL_MODE` (`off` / `alternate` / `only`) in
+`config.js` gates whether `local-dashboard-server.js` ever resolves to
+that layout, and an unconfigured or unreachable BYOS instance falls back
+to the normal layout, never a broken image. See `TRMNL_SETUP.md` for setup
+and troubleshooting (including a real production incident where a
+misconfigured `APP_URL` silently broke image fetches for days without
+tripping `/health`).
+
+**Current production state (2026-08-10):** live, **`TRMNL_MODE=only`** on
+the Pi (flipped from `alternate` — TRMNL is now the sole source for
+`/dashboard`; native portrait layouts like `wild-swiss` are unused, see
+"Landscape mount" below). BYOS (`byos_laravel`) runs as a Docker container
+on Brendan's always-on Mac (`~/services/byos_laravel/docker/prod`),
+reachable from the Pi at `http://192.168.50.204:4567`. Playlist is mostly
+still the seeded demo recipes (weather, quotes, history, etc.) plus one
+real recipe: **"CTA Transit"** (`server/transit-service.js` +
+`/api/transit`) — **fully live as of 2026-08-16**: both CTA keys are in the
+Pi's `.env` and the recipe polls `http://192.168.50.163:3000/api/transit`.
+Most of the playlist is still not real content.
+
+Cautionary tale worth remembering: from 2026-08-10 to 2026-08-16 this screen
+*looked* shipped but the code had never been deployed to the Pi — BYOS was
+polling a hand-started `node` process on the Mac. **`deploy-to-pi.sh` is
+manual and nothing verifies it ran**, so "it works" and "it's deployed" are
+independent facts here. Check `curl http://192.168.50.163:3000/api/<thing>`
+before believing a feature is in production.
+
+`.env` (including `TRMNL_MODE`) lives only on the Pi at
+`~/dashboard-server/.env` and is **not synced by `deploy-to-pi.sh`** — it's
+excluded like other secrets. Change it via `ssh pi`, edit, then
+`sudo systemctl restart kindle-dashboard`.
+
+Iterate on screens with `npm run trmnl:preview` / `npm run trmnl:serve`
+(see `TRMNL_SETUP.md`), which renders what the Kindle would show locally —
+don't push to the device to look at a layout. Docker Desktop now auto-starts
+at login and the BYOS sqlite DB is backed up hourly by
+`scripts/backup-byos-db.sh`, but FileVault means a cold reboot still needs a
+human to log in before BYOS comes back.
+
+### Landscape mount (decided 2026-08-10, not yet physically done)
+
+TRMNL renders landscape; `TRMNL_ROTATION=cw` rotates that into the 600x800
+file the Kindle displays. This reads sideways on today's **portrait**-mounted
+Kindle. The fix is physical, not software: remount the Kindle **landscape**
+(`hardware/kindle-frame-mount.scad` supports both orientations) — once
+that's done, the same `cw` render reads upright at full resolution. See
+`TRMNL_SETUP.md`'s "Sideways content" section.
+
+This is why `TRMNL_MODE=only`: once landscape-mounted, the native portrait
+`wild-swiss` layout would be the thing rendering sideways, so it's off
+rather than live with a mixed/broken rotation. It hasn't been redone for a
+landscape canvas — that's still open, see below.
+
+### Rotation cadence (investigated 2026-08-15, changed 2026-08-16)
+
+**Current setting: ~5 min.** `TRMNL_CACHE_TTL_MS=240000` (Pi `.env`) and
+`UPDATE_INTERVAL=300` (Kindle config). The TTL is deliberately 4 min, not 5:
+the effective cadence is `max(UPDATE_INTERVAL, TRMNL_CACHE_TTL_MS)`, so equal
+values risk a poll finding the cache 299s old, serving a stale image and
+skipping the playlist advance — which would silently give 10-min cadence.
+Keep the TTL comfortably below the poll interval. Also note
+`TRMNL_SLOT_MINUTES` does nothing under `TRMNL_MODE=only`
+(`local-dashboard-server.js:192` reads it only in `alternate` mode).
+
+The pre-2026-08-16 analysis below is retained for the mechanism:
+
+No internal BYOS timer — the playlist advances one item per authenticated
+`GET /api/display` call. Two caches gate how often that happens in
+practice: the Kindle's own fetch loop (`UPDATE_INTERVAL`, 15 min, 7am–10pm
+CT) and `trmnl-service.js`'s local screen cache (`TRMNL_CACHE_TTL_MS`,
+10 min default, confirmed on the Pi `.env`). Since 10 min < 15 min, every
+Kindle poll finds the cache stale and re-hits BYOS — net effect is **one
+playlist advance per Kindle poll, ~every 15 min, 7am–10pm CT (~60/day)**.
+`local-dashboard-server.js`'s separate 60s `CACHE_TTL_MS` image cache
+doesn't change this (60s < 15 min, so it never blocks a poll). **The
+LaraPaper admin UI has no manual "advance/next screen" button** — closest
+are per-device Pause and per-recipe "Fetch data now" (refetches that
+recipe's data source only, doesn't push a screen). The playlist's "Edit
+Playlist" modal has a "refresh seconds" field, but BYOS is pull-based —
+the Pi decides when to poll, so that field doesn't shorten cadence on its
+own; lowering the effective interval means lowering `TRMNL_CACHE_TTL_MS`
+and/or `UPDATE_INTERVAL` together. CLI-only forced advance:
+`npm run trmnl:preview -- --next`.
+
+### Handoff prompt for the next session
+
+> Continue work on the e_ink_screen Kindle dashboard
+> (`~/Projects/e_ink_screen`). TRMNL is the sole source for `/dashboard`
+> (`TRMNL_MODE=only` on the Pi); native portrait layouts (`wild-swiss` etc.)
+> are unused, see "Landscape mount" above. The CTA transit screen shipped
+> 2026-08-10 (`CHANGELOG.md`, `TRANSIT_SCREEN_PLAN.md`) but is still
+> fixture-backed for bus/train — only alerts are live.
+>
+> Two goals for this session, from Brendan directly (2026-08-15): refine
+> the CTA tracker, and generally make the rotation feel more like what he
+> actually wants day to day — faster cycling through screens and more
+> custom recipes, not just the seeded demos. Concretely:
+>
+> 1. **CTA tracker refinement.** Ask Brendan what's bugging him about it
+>    day to day before assuming — could be the fixture data being stale/
+>    unrealistic, the layout, or something else. Separately, check whether
+>    the CTA Bus Tracker / Train Tracker API keys have arrived yet; if so
+>    that's the long-pole item from `TRANSIT_SCREEN_PLAN.md` and unblocks
+>    swapping fixtures for live data in `server/transit-service.js` (just
+>    drop keys into the Pi's `.env`, fallback chain prefers live
+>    automatically — no code change).
+> 2. **Faster rotation.** See "Rotation cadence" above for the mechanism.
+>    To actually speed it up: lower `TRMNL_CACHE_TTL_MS` (currently 10 min)
+>    and/or the Kindle's `UPDATE_INTERVAL` (currently 15 min) together on
+>    the Pi's `.env` / Kindle config — but weigh the tradeoff first: more
+>    frequent polling means more e-ink refreshes (visible flashing, panel
+>    wear) and more load on the always-on Mac hosting BYOS. Ask Brendan
+>    what cadence he actually wants before changing it blindly.
+> 3. **More real recipes.** Most of the playlist is still seeded demo
+>    plugins (weather, quotes, history, Home Assistant, etc.), some erroring
+>    (e.g. "Weather forecast data not found"). Follow the CTA Transit
+>    pattern for new ones: Node-side service + cache/fallback chain + JSON
+>    endpoint (reuse `weather-service.js`/`calendar-service.js`/
+>    `pokemon-service.js` where possible) feeding a BYOS Liquid recipe.
+>    Ask Brendan what he actually wants to see before building — this is
+>    where his day-to-day usage preferences matter most. Also still open:
+>    a morning/evening playlist split (`active_from`/`active_until`/
+>    `weekdays` per playlist item, already supported by BYOS).
+>
+> Not yet started, lower priority unless Brendan raises it: redoing
+> `wild-swiss` for an 800x480 landscape canvas (only matters if he wants
+> native components alongside TRMNL rather than staying TRMNL-only), and
+> physically remounting the Kindle landscape (nothing blocks on this
+> except seeing renders upright on the real device — flag it as ready
+> whenever the frame's been flipped).
