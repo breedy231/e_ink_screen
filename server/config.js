@@ -52,6 +52,15 @@ module.exports = {
     BEDTIME_SAFE_LEVEL: parseInt(process.env.BEDTIME_SAFE_LEVEL, 10) || 40,
     BEDTIME_WINDOW_START: parseInt(process.env.BEDTIME_WINDOW_START, 10) || 21,
 
+    // Which devices raise alerts. Comma-separated ids from DEVICE_PROFILES in
+    // device-alerts.js ('v0', 'kitchen'). This is DEPLOYMENT state, not
+    // capability — add 'kitchen' only once that screen is actually polling, or
+    // it will go stale immediately and alert every check interval.
+    MONITORED_DEVICES: (process.env.MONITORED_DEVICES || 'v0')
+        .split(',')
+        .map((d) => d.trim().toLowerCase())
+        .filter(Boolean),
+
     // Display
     CANVAS_WIDTH: 600,
     CANVAS_HEIGHT: 800,
