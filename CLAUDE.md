@@ -201,6 +201,33 @@ white), no gradients. The server's `optimize-for-eink.py` pass
   `/health` on port 3000 is plain HTTP and needs no SSH.
 - Ops runbook: `PI_PRODUCTION_GUIDE.md`. Layout system: `DASHBOARD_LAYOUTS.md`.
 
+## Second screen — kitchen "Live Paper" (planned, 2026-08-16)
+
+A second e-ink screen is planned for the kitchen: a daily "paper" (2–3
+time-of-day faces) complementing v0's live status. **Start at
+`KITCHEN_HANDOFF.md`**, then `KITCHEN_SCREEN_PLAN.md` for the design and the
+jailbreak runbook.
+
+Device is confirmed: **Kindle Paperwhite 3** (7th gen, `DP75SDI`, serial
+`G090…`) on **firmware 5.12.3** — jailbreakable via WinterBreak2. Render target
+is **1072x1448 portrait**, versus v0's 600x800.
+
+Two things to know before touching server code:
+
+- **Alert state is now per-device** (`server/device-alerts.js`,
+  `DeviceAlertRegistry`). Previously one shared set of state machines meant any
+  second device polling `/dashboard` would continuously re-arm v0's staleness
+  alert and let it die silently. Devices are identified by `?device=`; an
+  absent param means v0, so the existing Kindle is unaffected.
+  `MONITORED_DEVICES` in `config.js` defaults to `v0` — add `kitchen` only once
+  that screen actually polls, or it goes stale immediately and alerts on every
+  check.
+- **The kitchen screen is deliberately NOT a TRMNL/Liquid recipe.** BYOS
+  renders landscape markup then rotates the bitmap, so it cannot produce a
+  portrait page, and 800x480 letterboxed onto a 1072x1448 panel wastes most of
+  it. The kitchen renders HTML→PNG at native resolution on the Mac. v0 stays
+  TRMNL/landscape; they diverge at the render layer on purpose.
+
 ## TRMNL integration (optional)
 
 The dashboard can alternate with screens from a self-hosted TRMNL BYOS
