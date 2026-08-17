@@ -9,6 +9,7 @@ const WeatherService = require('./weather-service');
 const PokemonService = require('./pokemon-service');
 const CalendarService = require('./calendar-service');
 const TrmnlService = require('./trmnl-service');
+const TransitService = require('./transit-service');
 
 /**
  * Unified dashboard generation pipeline — the single implementation shared
@@ -68,6 +69,11 @@ function createServices(options = {}) {
             apiKey: config.TRMNL_API_KEY,
             cacheTimeout: config.TRMNL_CACHE_TTL_MS,
             mockData
+        }),
+        transit: new TransitService({
+            busApiKey: config.CTA_BUS_API_KEY,
+            trainApiKey: config.CTA_TRAIN_API_KEY,
+            cacheTimeout: config.TRANSIT_CACHE_TTL_MS
         })
     };
 }

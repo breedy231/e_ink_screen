@@ -23,6 +23,35 @@ function assert(condition, message) {
     }
 }
 
+/**
+ * Render TrmnlComponent against a stub 2D context and report where it put the
+ * image. Only the calls the component actually makes are implemented; anything
+ * new it starts calling will throw loudly rather than silently pass.
+ */
+async function recordTrmnlPlacement(rotation, imagePath) {
+    const { COMPONENT_REGISTRY } = require('./dashboard-engine');
+    const component = new COMPONENT_REGISTRY.trmnl({
+        rotation,
+        padding: 0,
+        trmnlData: { imagePath }
+    });
+
+    const placement = { rotated: null };
+    const ctx = {
+        save() {}, restore() {}, beginPath() {}, closePath() {}, fill() {}, stroke() {},
+        moveTo() {}, lineTo() {}, arcTo() {}, fillRect() {}, strokeRect() {}, fillText() {},
+        translate() {},
+        rotate(angle) { placement.rotated = angle; },
+        drawImage(_image, _x, _y, width, height) {
+            placement.drawWidth = width;
+            placement.drawHeight = height;
+        }
+    };
+
+    await component.render(ctx, { x: 0, y: 0, width: 600, height: 800 });
+    return placement;
+}
+
 function freshCacheDir(name) {
     const dir = path.join(__dirname, '..', 'cache', `trmnl_test_${name}`);
     if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true });
@@ -98,6 +127,30 @@ async function runTests() {
     console.log('Test 5: Full Dashboard Pipeline (mock)');
     const { canvas } = await generateDashboard('trmnl', { mockData: true });
     assert(canvas.width === 600 && canvas.height === 800, `Canvas is 600x800 (got ${canvas.width}x${canvas.height})`);
+    console.log();
+
+    // Test 6: TrmnlComponent placement geometry. Asserted against a recording
+    // stub rather than real pixels so it still means something on this dev
+    // Mac, where node-canvas renders everything solid black.
+    console.log('Test 6: TrmnlComponent Rotation Geometry');
+    const placements = {};
+    for (const rotation of ['cw', 'ccw', 'none']) {
+        placements[rotation] = await recordTrmnlPlacement(rotation, mockScreen.imagePath);
+    }
+
+    // Rotated: the 800-wide source is scaled to the canvas's 800px height, so
+    // it fills the screen. Unrotated: scaled to the canvas's 600px width.
+    assert(
+        Math.round(placements.cw.drawWidth) === 800 && Math.round(placements.cw.drawHeight) === 480,
+        `cw fills the canvas (800x480 drawn, got ${Math.round(placements.cw.drawWidth)}x${Math.round(placements.cw.drawHeight)})`
+    );
+    assert(placements.cw.rotated === Math.PI / 2, 'cw rotates +90 degrees');
+    assert(placements.ccw.rotated === -Math.PI / 2, 'ccw rotates -90 degrees');
+    assert(placements.none.rotated === null, 'none does not rotate at all');
+    assert(
+        Math.round(placements.none.drawWidth) === 600 && Math.round(placements.none.drawHeight) === 360,
+        `none letterboxes upright to 600x360 (got ${Math.round(placements.none.drawWidth)}x${Math.round(placements.none.drawHeight)})`
+    );
     console.log();
 
     // Cleanup test cache dirs

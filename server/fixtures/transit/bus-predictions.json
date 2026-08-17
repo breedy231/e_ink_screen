@@ -1,0 +1,11 @@
+{
+  "bustime-response": {
+    "prd": [
+      { "tmstmp": "20260810 08:32", "typ": "A", "stpnm": "Halsted & Cornelia", "stpid": "5759", "vid": "1801", "rt": "8", "rtdir": "Southbound", "des": "79th", "prdtm": "20260810 08:37", "dly": false, "prdctdn": "5" },
+      { "tmstmp": "20260810 08:32", "typ": "A", "stpnm": "Halsted & Cornelia", "stpid": "5759", "vid": "1822", "rt": "8", "rtdir": "Southbound", "des": "Root", "prdtm": "20260810 08:51", "dly": false, "prdctdn": "19" },
+      { "tmstmp": "20260810 08:32", "typ": "A", "stpnm": "Lake Shore & Cornelia", "stpid": "1065", "vid": "6602", "rt": "146", "rtdir": "Southbound", "des": "Museum Campus", "prdtm": "20260810 08:39", "dly": false, "prdctdn": "7" },
+      { "tmstmp": "20260810 08:32", "typ": "A", "stpnm": "Lake Shore & Cornelia", "stpid": "1065", "vid": "6611", "rt": "146", "rtdir": "Southbound", "des": "Museum Campus", "prdtm": "20260810 08:56", "dly": true, "prdctdn": "24" },
+      { "tmstmp": "20260810 08:32", "typ": "A", "stpnm": "Lake Shore & Cornelia", "stpid": "1065", "vid": "6390", "rt": "151", "rtdir": "Southbound", "des": "Union Station", "prdtm": "20260810 08:43", "dly": false, "prdctdn": "11" }
+    ]
+  }
+}

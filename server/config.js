@@ -52,6 +52,15 @@ module.exports = {
     BEDTIME_SAFE_LEVEL: parseInt(process.env.BEDTIME_SAFE_LEVEL, 10) || 40,
     BEDTIME_WINDOW_START: parseInt(process.env.BEDTIME_WINDOW_START, 10) || 21,
 
+    // Which devices raise alerts. Comma-separated ids from DEVICE_PROFILES in
+    // device-alerts.js ('v0', 'kitchen'). This is DEPLOYMENT state, not
+    // capability — add 'kitchen' only once that screen is actually polling, or
+    // it will go stale immediately and alert every check interval.
+    MONITORED_DEVICES: (process.env.MONITORED_DEVICES || 'v0')
+        .split(',')
+        .map((d) => d.trim().toLowerCase())
+        .filter(Boolean),
+
     // Display
     CANVAS_WIDTH: 600,
     CANVAS_HEIGHT: 800,
@@ -59,6 +68,13 @@ module.exports = {
     // Secrets / integrations (no defaults — features disable when unset)
     CALENDAR_URL: process.env.CALENDAR_URL || null,
     DISCORD_WEBHOOK_URL: process.env.DISCORD_WEBHOOK_URL || null,
+
+    // CTA transit — two separate keys (see TRANSIT_SCREEN_PLAN.md), both
+    // request-and-wait from CTA. Unset = transit-service.js falls back to
+    // fixtures for bus/train; alerts need no key and always go live.
+    CTA_BUS_API_KEY: process.env.CTA_BUS_API_KEY || null,
+    CTA_TRAIN_API_KEY: process.env.CTA_TRAIN_API_KEY || null,
+    TRANSIT_CACHE_TTL_MS: parseInt(process.env.TRANSIT_CACHE_TTL_MS, 10) || 5 * 60 * 1000,
 
     // TRMNL (self-hosted BYOS) — off unless TRMNL_MODE is set and
     // TRMNL_BASE_URL/DEVICE_MAC/API_KEY are all configured. See TRMNL_SETUP.md.

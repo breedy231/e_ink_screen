@@ -6,8 +6,11 @@
   "scripts": {
     "start": "node local-dashboard-server.js",
     "generate": "node generate-flexible-dashboard.js",
-    "test": "node pokemon-service.test.js && node battery-alert.test.js && node staleness-alert.test.js && node bedtime-alert.test.js && node trmnl-service.test.js",
-    "test:nodeps": "node battery-alert.test.js && node staleness-alert.test.js && node bedtime-alert.test.js"
+    "trmnl:preview": "$npm_package_config_python trmnl-preview.py",
+    "trmnl:next": "$npm_package_config_python trmnl-preview.py --next",
+    "trmnl:serve": "$npm_package_config_python trmnl-preview.py --serve",
+    "test": "node pokemon-service.test.js && node battery-alert.test.js && node staleness-alert.test.js && node bedtime-alert.test.js && node device-alerts.test.js && node trmnl-service.test.js && node transit-service.test.js",
+    "test:nodeps": "node battery-alert.test.js && node staleness-alert.test.js && node bedtime-alert.test.js && node device-alerts.test.js"
   },
   "keywords": [
     "kindle",
@@ -17,6 +20,10 @@
   ],
   "author": "ClaudeUser",
   "license": "MIT",
+  "config": {
+    "//": "Preview scripts need Pillow. Matches resolvePythonBin() in config.js: the venv created by `python3 -m venv venv && venv/bin/pip install -r server/requirements.txt`.",
+    "python": "../venv/bin/python3"
+  },
   "dependencies": {
     "canvas": "^2.11.2",
     "date-fns": "^2.30.0",
