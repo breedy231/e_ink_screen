@@ -11,6 +11,10 @@ just fetches `/dashboard` on its normal loop.
 This is additive and off by default (`TRMNL_MODE=off`). Nothing here
 changes Kindle scripts, `on-boot.sh`, or the fetch loop.
 
+For *authoring* recipes once BYOS is running — the archive API, mashup
+layout/size mapping, and why the admin UI's markup editor can't be
+automated — see `BYOS_RECIPES.md`.
+
 ## 1. Pre-flight: pick where BYOS runs
 
 BYOS implementations (e.g. [usetrmnl/byos_laravel](https://github.com/usetrmnl/byos_laravel))

@@ -1,0 +1,8 @@
+name: CTA Transit
+no_screen_padding: 'no'
+dark_mode: 'no'
+strategy: polling
+polling_verb: get
+polling_url: http://192.168.50.163:3000/api/transit
+refresh_interval: 5
+id: 01a01009-1725-7f8c-b504-16b46214267e

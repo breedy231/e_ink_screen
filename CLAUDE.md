@@ -256,6 +256,17 @@ real recipe: **"CTA Transit"** (`server/transit-service.js` +
 Pi's `.env` and the recipe polls `http://192.168.50.163:3000/api/transit`.
 Most of the playlist is still not real content.
 
+**Update 2026-08-17:** the device now cycles a single **`2Lx1R` mashup** in
+the "test" playlist — Zen Quotes + **Weather Chicago** (recipe 11) stacked
+as quadrants on the left, **CTA Transit** (recipe 10) as a tall
+`half_vertical` on the right, with the Service Alerts block removed. The
+"Main Rotation" playlist (all the seeded demos) is toggled **off**. Recipes
+2 (Vienna weather) and 9 (old full-width CTA) are orphaned and can be
+deleted. Recipes 10/11 were authored via the **archive API** and carry real
+per-size markup variants — read **`BYOS_RECIPES.md`** before touching any
+recipe, especially the `Plugin.php:948` half-width fallback trap and the
+fact that the admin UI's CodeMirror editor cannot be driven programmatically.
+
 Cautionary tale worth remembering: from 2026-08-10 to 2026-08-16 this screen
 *looked* shipped but the code had never been deployed to the Pi — BYOS was
 polling a hand-started `node` process on the Mac. **`deploy-to-pi.sh` is
