@@ -1,0 +1,26 @@
+<div class="view view--{{ size }}">
+  <div style="display:flex; flex-direction:column; gap:6px; padding:6px; height:100%; text-align:left;">
+
+    <div style="display:flex; justify-content:space-between; align-items:baseline; border-bottom:2px solid #000; padding-bottom:2px;">
+      <span style="font-size:15px; font-weight:bold;">Tasks</span>
+      <span style="font-size:11px;">
+        {{ data.counts.today }}{% if data.counts.overdue > 0 %} +{{ data.counts.overdue }} od{% endif %}
+      </span>
+    </div>
+
+    {% if data.tasks.size == 0 %}
+    <div style="font-size:14px;">All clear.</div>
+    {% endif %}
+
+    {% for t in data.tasks limit:8 %}
+    <div style="border-bottom:1px solid #000; padding-bottom:3px;">
+      <div style="font-size:13px; font-weight:bold;">
+        {% if t.isOverdue %}&#9888; {% endif %}{{ t.content | truncate: 34 }}
+      </div>
+      {% if t.time or t.project %}
+      <div style="font-size:10px;">{% if t.time %}{{ t.time }}{% endif %}{% if t.time and t.project %} &middot; {% endif %}{% if t.project %}{{ t.project }}{% endif %}</div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>

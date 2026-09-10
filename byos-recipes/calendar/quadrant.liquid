@@ -1,0 +1,11 @@
+<div class="view view--{{ size }}">
+  <div style="display:flex; flex-direction:column; gap:4px; padding:6px; height:100%; text-align:left;">
+    <div style="font-size:14px; font-weight:bold; border-bottom:2px solid #000;">Today</div>
+    {% if data.today.size == 0 %}
+    <div style="font-size:12px;">Nothing scheduled.</div>
+    {% endif %}
+    {% for e in data.today limit:4 %}
+    <div style="font-size:12px;"><b>{{ e.time }}</b> {{ e.name | truncate: 24 }}</div>
+    {% endfor %}
+  </div>
+</div>

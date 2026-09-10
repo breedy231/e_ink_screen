@@ -345,6 +345,34 @@ class LocalDashboardServer {
         }
     }
 
+    async handleApiJson(res, name, fetchFn) {
+        try {
+            const data = await fetchFn();
+            res.writeHead(200, {
+                'Content-Type': 'application/json',
+                'X-Generated-By': 'Kindle Dashboard Server'
+            });
+            res.end(JSON.stringify(data, null, 2));
+            this.log(`${name} data served`);
+        } catch (error) {
+            this.handleError(res, error, `Failed to fetch ${name} data`);
+        }
+    }
+
+    async getCalendarForApi() {
+        // Unconfigured -> mock rather than empty, matching the other tile
+        // services where "no credentials yet" still renders a real-looking
+        // screen (the source field says which it is).
+        const calendar = this.services.calendar;
+        const data = await calendar.getCalendarData();
+        const formatted = calendar.formatForDashboard(
+            data.source === 'unconfigured'
+                ? { _source: 'mock', ...calendar.getMockCalendarData() }
+                : data
+        );
+        return { ...formatted, _timestamp: Date.now() };
+    }
+
     handleApiInfo(req, res) {
         const info = {
             title: 'Kindle Dashboard Local Server',
@@ -362,6 +390,22 @@ class LocalDashboardServer {
                 '/api/transit': {
                     method: 'GET',
                     description: 'CTA bus/train arrivals + alerts near home, Loop-bound (JSON)'
+                },
+                '/api/todoist': {
+                    method: 'GET',
+                    description: 'Todoist today + overdue tasks (JSON)'
+                },
+                '/api/calendar': {
+                    method: 'GET',
+                    description: 'Calendar events: today / tomorrow / upcoming (JSON)'
+                },
+                '/api/fitness': {
+                    method: 'GET',
+                    description: 'FitLocal daily numbers: nutrition, recovery, weight (JSON)'
+                },
+                '/api/rss': {
+                    method: 'GET',
+                    description: 'RSS digest headlines from the nightly rss-digest run (JSON)'
                 },
                 '/health': {
                     method: 'GET',
@@ -441,6 +485,22 @@ class LocalDashboardServer {
                         res.writeHead(405, { 'Allow': 'GET' });
                         res.end('Method Not Allowed');
                     }
+                    break;
+
+                case '/api/todoist':
+                    await this.handleApiJson(res, 'Todoist', () => this.services.todoist.getTodoistData());
+                    break;
+
+                case '/api/calendar':
+                    await this.handleApiJson(res, 'Calendar', () => this.getCalendarForApi());
+                    break;
+
+                case '/api/fitness':
+                    await this.handleApiJson(res, 'Fitness', () => this.services.fitness.getFitnessData());
+                    break;
+
+                case '/api/rss':
+                    await this.handleApiJson(res, 'RSS', () => this.services.rss.getRssData());
                     break;
 
                 case '/health':

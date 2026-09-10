@@ -1,0 +1,8 @@
+name: Fitness
+no_screen_padding: 'no'
+dark_mode: 'no'
+strategy: polling
+polling_verb: get
+polling_url: http://192.168.50.163:3000/api/fitness
+refresh_interval: 30
+id: 01a08c81-b42b-7b25-b66d-6bdee14c5669

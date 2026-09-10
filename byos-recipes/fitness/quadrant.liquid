@@ -1,0 +1,18 @@
+<div class="view view--{{ size }}">
+  <div style="display:flex; flex-direction:column; gap:4px; padding:6px; height:100%; text-align:left;">
+    <div style="display:flex; justify-content:space-between; border-bottom:2px solid #000;">
+      <span style="font-size:14px; font-weight:bold;">Fitness</span>
+      {% if data.weight %}<span style="font-size:12px; font-weight:bold;">{{ data.weight.lb }} lb</span>{% endif %}
+    </div>
+    {% assign calpct = data.nutrition.calories.current | times: 100.0 | divided_by: data.nutrition.calories.target | round | at_most: 100 %}
+    <div style="font-size:11px;"><b>Cal</b> {{ data.nutrition.calories.current }}/{{ data.nutrition.calories.target }}</div>
+    <div style="border:1px solid #000; height:8px;"><div style="background:#000; height:100%; width:{{ calpct }}%;"></div></div>
+    {% if data.fullyRecovered %}
+    <div style="font-size:12px; font-weight:bold;">Fully recovered.</div>
+    {% else %}
+    {% for m in data.recovery limit:3 %}
+    <div style="font-size:11px;">{{ m.muscle | capitalize }} <b>{{ m.pct }}%</b></div>
+    {% endfor %}
+    {% endif %}
+  </div>
+</div>
