@@ -1,0 +1,52 @@
+<div class="view view--{{ size }}">
+  <div class="layout" style="display:flex; flex-direction:column; gap:8px; padding:6px;">
+    <div style="display:flex; gap:28px;">
+      <div style="flex:1;">
+        <div style="font-weight:bold; font-size:16px; border-bottom:2px solid #000; margin-bottom:6px; padding-bottom:2px;">{{ data.rail.stationName }} &middot; walk {{ data.rail.walkMinutes }} min</div>
+        {% for line in data.rail.lines %}
+        <div style="margin-bottom:8px;">
+          <div style="font-size:14px; font-weight:bold;">{{ line.label }}</div>
+          {% if line.arrivals.size > 0 %}
+          <div style="display:flex; gap:20px; align-items:baseline; margin-top:2px;">
+            {% for a in line.arrivals %}
+            <div>
+              <span style="font-size:34px; font-weight:bold; line-height:1;">{{ a.minutes }}m</span>
+              <div style="font-size:12px;">{{ a.destination }}{% if a.isDelayed %} (delayed){% endif %}</div>
+            </div>
+            {% endfor %}
+          </div>
+          <div style="font-size:11px; margin-top:2px;">~{{ line.rideMinutesToLoop }} min ride to Loop</div>
+          {% else %}
+          <div style="font-size:14px;">No arrivals</div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      <div style="flex:1;">
+        <div style="font-weight:bold; font-size:16px; border-bottom:2px solid #000; margin-bottom:6px; padding-bottom:2px;">Bus</div>
+        {% for stop in data.bus.stops %}
+        <div style="margin-bottom:8px;">
+          <div style="font-size:14px; font-weight:bold;">{{ stop.label }} &middot; {{ stop.walkMinutes }}m walk</div>
+          {% if stop.arrivals.size > 0 %}
+          <div style="display:flex; gap:20px; margin-top:2px;">
+            {% for a in stop.arrivals %}
+            <span style="font-size:26px; font-weight:bold; line-height:1;">{{ a.minutes }}m</span>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div style="font-size:14px;">No arrivals</div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    {% unless data.hasAnyArrivals %}
+    <div style="font-size:18px; margin-top:14px;">No departures right now &mdash; check back later.</div>
+    {% endunless %}
+  </div>
+  <div class="title_bar">
+    <span class="title">CTA Transit</span>
+    <span class="instance">Loop-bound</span>
+  </div>
+</div>

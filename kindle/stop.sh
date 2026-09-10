@@ -68,6 +68,48 @@ AFTER RUNNING:
 EOF
 }
 
+# Stop every dashboard loop: the PID file first, then sweep for orphans.
+#
+# Kept in sync with the identical helper in start.sh. The PID file only ever
+# tracks the NEWEST loop, so a loop that outlived its SIGTERM became
+# invisible to both scripts and kept fetching forever — stop.sh would report
+# success while a loop was still running. Observed live on 2026-08-16.
+stop_all_loops() {
+    local loop_pid_file="${DASHBOARD_DIR}/dashboard-loop.pid"
+    local loop_pid
+    local sweep
+    local pid
+
+    if [ -f "${loop_pid_file}" ]; then
+        loop_pid=$(cat "${loop_pid_file}" 2>/dev/null)
+        if [ -n "${loop_pid}" ] && kill -0 "${loop_pid}" 2>/dev/null; then
+            log_info "Stopping dashboard loop (PID ${loop_pid})"
+            kill "${loop_pid}" 2>/dev/null || true
+            sleep 1
+            if kill -0 "${loop_pid}" 2>/dev/null; then
+                log_warn "PID ${loop_pid} ignored SIGTERM; sending SIGKILL"
+                kill -9 "${loop_pid}" 2>/dev/null || true
+                sleep 1
+            fi
+        fi
+        rm -f "${loop_pid_file}"
+    else
+        log_info "No dashboard loop PID file found"
+    fi
+
+    # Sweep any loop the PID file never knew about. busybox plain `ps` prints
+    # no command line, so `ps aux` is required or this finds nothing.
+    sweep=$(ps aux 2>/dev/null | grep '[d]ashboard-loop.sh' | awk '{print $2}')
+    for pid in ${sweep}; do
+        if [ "${pid}" != "$$" ]; then
+            log_warn "Killing orphaned dashboard loop (PID ${pid})"
+            kill -9 "${pid}" 2>/dev/null || true
+        fi
+    done
+
+    log_info "Dashboard loop stopped"
+}
+
 restore_screen_sleep() {
     log_info "Re-enabling screen saver for normal Kindle operation..."
 
@@ -274,25 +316,8 @@ main() {
 
     log_info "=== Stopping Kindle Dashboard Mode ==="
 
-    # Stop the dashboard loop if running
-    local loop_pid_file="/mnt/us/dashboard/dashboard-loop.pid"
-    if [ -f "$loop_pid_file" ]; then
-        local loop_pid
-        loop_pid=$(cat "$loop_pid_file" 2>/dev/null)
-        if [ -n "$loop_pid" ] && kill -0 "$loop_pid" 2>/dev/null; then
-            log_info "Stopping dashboard loop (PID $loop_pid)"
-            kill "$loop_pid" 2>/dev/null || true
-            sleep 1
-            # Force kill if still running
-            if kill -0 "$loop_pid" 2>/dev/null; then
-                kill -9 "$loop_pid" 2>/dev/null || true
-            fi
-        fi
-        rm -f "$loop_pid_file"
-        log_info "Dashboard loop stopped"
-    else
-        log_info "No dashboard loop PID file found"
-    fi
+    # Stop the dashboard loop if running (PID file + orphan sweep)
+    stop_all_loops
 
     # Re-enable pillow UI overlay
     if [ -x "/usr/bin/lipc-set-prop" ]; then

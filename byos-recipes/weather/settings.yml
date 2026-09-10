@@ -1,0 +1,8 @@
+name: Weather Chicago
+no_screen_padding: 'no'
+dark_mode: 'no'
+strategy: polling
+polling_verb: get
+polling_url: https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=41.8781&lon=-87.6298
+refresh_interval: 15
+id: 01a01009-174b-734b-8bd4-88cf3cc29c43

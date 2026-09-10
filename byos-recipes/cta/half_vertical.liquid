@@ -1,0 +1,48 @@
+<div class="view view--{{ size }}">
+  <div class="layout" style="display:flex; flex-direction:column; justify-content:flex-start; align-items:stretch; text-align:left; gap:6px; padding:6px; height:100%;">
+
+    <div style="font-weight:bold; font-size:14px; border-bottom:2px solid #000; padding-bottom:2px;">
+      {{ data.rail.stationName }} &middot; walk {{ data.rail.walkMinutes }}m
+    </div>
+
+    {% for line in data.rail.lines %}
+    <div>
+      <div style="font-size:12px; font-weight:bold;">{{ line.label }}</div>
+      {% if line.arrivals.size > 0 %}
+      <div style="display:flex; gap:14px; align-items:baseline;">
+        {% for a in line.arrivals limit:2 %}
+        <span style="font-size:30px; font-weight:bold; line-height:1;">{{ a.minutes }}m</span>
+        {% endfor %}
+        <span style="font-size:10px;">~{{ line.rideMinutesToLoop }}m to Loop</span>
+      </div>
+      {% else %}
+      <div style="font-size:12px;">No arrivals</div>
+      {% endif %}
+    </div>
+    {% endfor %}
+
+    <div style="font-weight:bold; font-size:14px; border-bottom:2px solid #000; padding-bottom:2px; margin-top:2px;">Bus</div>
+
+    {% for stop in data.bus.stops %}
+    <div style="display:flex; align-items:baseline; gap:8px;">
+      <span style="font-size:12px; font-weight:bold; flex:1;">{{ stop.label | split: '/' | first | truncate: 18 }}</span>
+      {% if stop.arrivals.size > 0 %}
+      {% for a in stop.arrivals limit:2 %}
+      <span style="font-size:22px; font-weight:bold; line-height:1;">{{ a.minutes }}m</span>
+      {% endfor %}
+      {% else %}
+      <span style="font-size:12px;">--</span>
+      {% endif %}
+    </div>
+    {% endfor %}
+
+    {% unless data.hasAnyArrivals %}
+    <div style="font-size:14px; margin-top:8px;">No departures right now.</div>
+    {% endunless %}
+
+  </div>
+  <div class="title_bar">
+    <span class="title">CTA</span>
+    <span class="instance">Loop-bound</span>
+  </div>
+</div>

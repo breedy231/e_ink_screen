@@ -212,6 +212,47 @@ keep_wifi_alive() {
     fi
 }
 
+# Stop every dashboard loop: the PID file first, then sweep for orphans.
+#
+# The PID file only ever tracks the NEWEST loop. If one ever outlived its
+# SIGTERM — mid-wget, or asleep between fetches — the replacement overwrote
+# the file and the survivor became invisible to both start.sh and stop.sh,
+# running forever alongside its replacement. Two loops means double the
+# e-ink refreshes and double-advances of the BYOS playlist, so the display
+# silently skips every other screen. Observed live on 2026-08-16.
+stop_all_loops() {
+    local loop_pid_file="${DASHBOARD_DIR}/dashboard-loop.pid"
+    local old_pid
+    local sweep
+    local pid
+
+    if [ -f "${loop_pid_file}" ]; then
+        old_pid=$(cat "${loop_pid_file}" 2>/dev/null)
+        if [ -n "${old_pid}" ] && kill -0 "${old_pid}" 2>/dev/null; then
+            log_info "Stopping existing dashboard loop (PID ${old_pid})"
+            kill "${old_pid}" 2>/dev/null || true
+            sleep 1
+            # Verify it actually died rather than assuming SIGTERM landed.
+            if kill -0 "${old_pid}" 2>/dev/null; then
+                log_warn "PID ${old_pid} ignored SIGTERM; sending SIGKILL"
+                kill -9 "${old_pid}" 2>/dev/null || true
+                sleep 1
+            fi
+        fi
+        rm -f "${loop_pid_file}"
+    fi
+
+    # Sweep any loop the PID file never knew about. busybox plain `ps` prints
+    # no command line, so `ps aux` is required or this finds nothing.
+    sweep=$(ps aux 2>/dev/null | grep '[d]ashboard-loop.sh' | awk '{print $2}')
+    for pid in ${sweep}; do
+        if [ "${pid}" != "$$" ]; then
+            log_warn "Killing orphaned dashboard loop (PID ${pid})"
+            kill -9 "${pid}" 2>/dev/null || true
+        fi
+    done
+}
+
 stop_framework() {
     if [ "$1" = "true" ]; then
         log_info "Stopping Kindle framework to reduce power consumption..."
@@ -338,18 +379,9 @@ main() {
     # Keep WiFi alive to ensure updates can fetch
     keep_wifi_alive
 
-    # Kill any existing dashboard loop
-    local loop_pid_file="${DASHBOARD_DIR}/dashboard-loop.pid"
-    if [ -f "$loop_pid_file" ]; then
-        local old_pid
-        old_pid=$(cat "$loop_pid_file" 2>/dev/null)
-        if [ -n "$old_pid" ] && kill -0 "$old_pid" 2>/dev/null; then
-            log_info "Stopping existing dashboard loop (PID $old_pid)"
-            kill "$old_pid" 2>/dev/null || true
-            sleep 1
-        fi
-        rm -f "$loop_pid_file"
-    fi
+    # Kill any existing dashboard loop (PID file + orphan sweep) so restarts
+    # replace the loop instead of stacking a second one alongside it.
+    stop_all_loops
 
     # Launch dashboard loop in background (handles fetch, display, sleep/wake).
     # Invoke via sh: /mnt/us is vfat, so exec bits don't survive there.

@@ -1,0 +1,9 @@
+{
+  "bustime-response": {
+    "error": [
+      { "rt": "8", "stpid": "5759", "msg": "No arrival times" },
+      { "rt": "146", "stpid": "1065", "msg": "No arrival times" },
+      { "rt": "151", "stpid": "1065", "msg": "No arrival times" }
+    ]
+  }
+}

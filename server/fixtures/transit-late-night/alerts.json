@@ -1,0 +1,23 @@
+{
+  "CTAAlerts": {
+    "TimeStamp": "2026-08-10T08:32:00",
+    "ErrorCode": "0",
+    "ErrorMessage": null,
+    "Alert": [
+      {
+        "AlertId": "101234",
+        "Headline": "Red Line: Residual delays in both directions",
+        "SeverityCSS": "major",
+        "MajorAlert": "1",
+        "ImpactedService": { "Service": [ { "ServiceType": "T", "ServiceName": "Red Line", "ServiceId": "Red" } ] }
+      },
+      {
+        "AlertId": "101235",
+        "Headline": "146 temporary reroute near Museum Campus",
+        "SeverityCSS": "planned",
+        "MajorAlert": "0",
+        "ImpactedService": { "Service": [ { "ServiceType": "B", "ServiceName": "Inner Lake Shore/Michigan Express", "ServiceId": "146" } ] }
+      }
+    ]
+  }
+}

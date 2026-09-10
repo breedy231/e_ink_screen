@@ -838,7 +838,7 @@ class TrmnlComponent extends ComponentBase {
             fontSize: 16,
             textAlign: 'center',
             trmnlData: config.trmnlData || null,
-            rotation: config.rotation || null, // 'cw' | 'ccw'; falls back to server config.TRMNL_ROTATION in render()
+            rotation: config.rotation || null, // 'cw' | 'ccw' | 'none'; falls back to server config.TRMNL_ROTATION in render()
             ...config
         });
     }
@@ -847,6 +847,15 @@ class TrmnlComponent extends ComponentBase {
      * TRMNL screens are landscape (e.g. 800x480); this canvas is portrait
      * (600x800). Rotate 90deg into portrait, then scale-to-fit so any
      * source resolution pillarboxes cleanly instead of assuming 800x480.
+     *
+     * 'none' skips the rotation and letterboxes the landscape screen upright
+     * in the middle of the portrait canvas. That trades size for legibility:
+     * an 800x480 screen lands at 600x360, using under half the display, but
+     * it reads without tilting the Kindle. Rotating fills the screen at the
+     * cost of the content being genuinely sideways — which is inherent to
+     * landscape TRMNL markup on a portrait panel. Choosing a "portrait" BYOS
+     * device model does not fix it: BYOS renders the markup landscape and
+     * then rotates the bitmap (verified against amazon_kindle_7).
      */
     async render(ctx, bounds) {
         this.drawContainer(ctx, bounds);
@@ -862,11 +871,13 @@ class TrmnlComponent extends ComponentBase {
         try {
             const image = await loadImage(this.config.trmnlData.imagePath);
 
-            // After a 90deg rotation, the image's rotated footprint is
-            // (height x width) — fit that footprint into contentBounds.
-            const rotatedWidth = image.height;
-            const rotatedHeight = image.width;
-            const scale = Math.min(contentBounds.width / rotatedWidth, contentBounds.height / rotatedHeight);
+            const rotation = this.config.rotation || config.TRMNL_ROTATION;
+
+            // Fit the footprint the image will actually occupy: unrotated
+            // that's (width x height), rotated 90deg it's (height x width).
+            const footprintWidth = rotation === 'none' ? image.width : image.height;
+            const footprintHeight = rotation === 'none' ? image.height : image.width;
+            const scale = Math.min(contentBounds.width / footprintWidth, contentBounds.height / footprintHeight);
             const drawWidth = image.width * scale;
             const drawHeight = image.height * scale;
 
@@ -874,9 +885,10 @@ class TrmnlComponent extends ComponentBase {
             const centerY = contentBounds.y + contentBounds.height / 2;
 
             ctx.save();
-            const rotation = this.config.rotation || config.TRMNL_ROTATION;
             ctx.translate(centerX, centerY);
-            ctx.rotate((rotation === 'ccw' ? -1 : 1) * Math.PI / 2);
+            if (rotation !== 'none') {
+                ctx.rotate((rotation === 'ccw' ? -1 : 1) * Math.PI / 2);
+            }
             ctx.drawImage(image, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
             ctx.restore();
         } catch (error) {

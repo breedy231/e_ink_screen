@@ -1,0 +1,15 @@
+{
+  "ctatt": {
+    "tmst": "2026-08-10T08:32:00",
+    "errCd": "0",
+    "errNm": null,
+    "eta": [
+      { "staId": "41320", "stpId": "30256", "staNm": "Belmont", "rt": "Red", "destNm": "95th/Dan Ryan", "trDr": "5", "arrT": "2026-08-10T08:35:00", "isApp": "1", "isSch": "0", "isDly": "0" },
+      { "staId": "41320", "stpId": "30256", "staNm": "Belmont", "rt": "Red", "destNm": "95th/Dan Ryan", "trDr": "5", "arrT": "2026-08-10T08:44:00", "isApp": "0", "isSch": "0", "isDly": "0" },
+      { "staId": "41320", "stpId": "30255", "staNm": "Belmont", "rt": "Red", "destNm": "Howard", "trDr": "1", "arrT": "2026-08-10T08:36:00", "isApp": "0", "isSch": "0", "isDly": "0" },
+      { "staId": "41320", "stpId": "30258", "staNm": "Belmont", "rt": "Brn", "destNm": "Loop", "trDr": "5", "arrT": "2026-08-10T08:38:00", "isApp": "0", "isSch": "0", "isDly": "0" },
+      { "staId": "41320", "stpId": "30258", "staNm": "Belmont", "rt": "Brn", "destNm": "Loop", "trDr": "5", "arrT": "2026-08-10T08:52:00", "isApp": "0", "isSch": "0", "isDly": "1" },
+      { "staId": "41320", "stpId": "30257", "staNm": "Belmont", "rt": "Brn", "destNm": "Kimball", "trDr": "1", "arrT": "2026-08-10T08:41:00", "isApp": "0", "isSch": "0", "isDly": "0" }
+    ]
+  }
+}

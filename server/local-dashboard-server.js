@@ -5,9 +5,7 @@ const { URL } = require('url');
 const config = require('./config');
 const { generateDashboard, optimizeForEink, createServices } = require('./generate');
 const { sendDiscordNotification } = require('./notify');
-const { BatteryAlertState } = require('./battery-alert');
-const { StalenessAlertState } = require('./staleness-alert');
-const { BedtimeAlertState } = require('./bedtime-alert');
+const { DeviceAlertRegistry } = require('./device-alerts');
 
 /**
  * Local HTTP Server for Kindle Dashboard
@@ -25,18 +23,18 @@ class LocalDashboardServer {
         this.layout = options.layout || config.DEFAULT_LAYOUT;
 
         this.imageCache = new Map();
-        this.batteryAlerts = new BatteryAlertState();
-        this.stalenessAlert = new StalenessAlertState({
-            thresholdMs: config.STALE_THRESHOLD_MS,
-            activeHoursStart: config.ACTIVE_HOURS_START,
-            activeHoursEnd: config.ACTIVE_HOURS_END,
-            timezone: config.TIMEZONE
-        });
-        this.bedtimeAlert = new BedtimeAlertState({
-            safeLevel: config.BEDTIME_SAFE_LEVEL,
-            windowStartHour: config.BEDTIME_WINDOW_START,
-            windowEndHour: config.ACTIVE_HOURS_END,
-            timezone: config.TIMEZONE
+        // Alert state is per-device: a second screen polling this server must
+        // not re-arm the first screen's staleness alert. See device-alerts.js.
+        this.deviceAlerts = new DeviceAlertRegistry({
+            monitored: options.monitoredDevices || config.MONITORED_DEVICES,
+            alertConfig: {
+                staleThresholdMs: config.STALE_THRESHOLD_MS,
+                activeHoursStart: config.ACTIVE_HOURS_START,
+                activeHoursEnd: config.ACTIVE_HOURS_END,
+                bedtimeSafeLevel: config.BEDTIME_SAFE_LEVEL,
+                bedtimeWindowStart: config.BEDTIME_WINDOW_START,
+                timezone: config.TIMEZONE
+            }
         });
         this.discordWebhookUrl = config.DISCORD_WEBHOOK_URL;
 
@@ -49,24 +47,28 @@ class LocalDashboardServer {
         console.log(`[${timestamp}] [${level}] ${message}`);
     }
 
-    checkBatteryAndNotify(batteryLevel, chargingStatus) {
+    checkBatteryAndNotify(device, batteryLevel, chargingStatus) {
         if (!this.discordWebhookUrl) return;
+        // Null when this device has no battery alerting — e.g. a screen on a
+        // permanent charger, where the warning could never be actionable.
+        if (!device.battery) return;
 
         // Bucketing, charging skip, and re-arm-on-recharge live in
         // BatteryAlertState so they can be tested without the render deps.
-        const decision = this.batteryAlerts.evaluate(batteryLevel, chargingStatus);
+        const decision = device.battery.evaluate(batteryLevel, chargingStatus);
         if (!decision.notify) return;
 
         const { level, critical, severity } = decision;
         const color = critical ? 0xED4245 : 0xFEE75C; // red or yellow
 
-        this.log(`Battery ${severity.toLowerCase()}: ${level}% — sending Discord notification`, 'WARN');
+        this.log(`[${device.id}] Battery ${severity.toLowerCase()}: ${level}% — sending Discord notification`, 'WARN');
 
         sendDiscordNotification(this.discordWebhookUrl, {
-            title: `Kindle Battery ${severity}`,
+            title: `${device.profile.label} Battery ${severity}`,
             description: `Battery at **${level}%**. ${critical ? 'Charge immediately!' : 'Time to charge soon.'}`,
             color,
             fields: [
+                { name: 'Device', value: device.profile.label, inline: true },
                 { name: 'Battery', value: `${level}%`, inline: true },
                 { name: 'Severity', value: severity, inline: true },
                 { name: 'Time', value: new Date().toLocaleString('en-US', { timeZone: config.TIMEZONE }), inline: true }
@@ -78,24 +80,26 @@ class LocalDashboardServer {
         });
     }
 
-    checkBedtimeAndNotify(batteryLevel, chargingStatus) {
+    checkBedtimeAndNotify(device, batteryLevel, chargingStatus) {
         if (!this.discordWebhookUrl) return;
+        if (!device.bedtime) return;
 
         // Bedtime charge check: once per evening in the window before active
         // hours end, if battery is still low, send a reminder to plug it in
         // before it dies overnight.
-        const decision = this.bedtimeAlert.evaluate(batteryLevel, chargingStatus, Date.now());
+        const decision = device.bedtime.evaluate(batteryLevel, chargingStatus, Date.now());
         if (!decision.notify) return;
 
         const { level } = decision;
 
-        this.log(`Bedtime check: battery ${level}% below safe overnight level — sending Discord notification`, 'WARN');
+        this.log(`[${device.id}] Bedtime check: battery ${level}% below safe overnight level — sending Discord notification`, 'WARN');
 
         sendDiscordNotification(this.discordWebhookUrl, {
-            title: 'Kindle Needs Charging Tonight',
+            title: `${device.profile.label} Needs Charging Tonight`,
             description: `Battery at **${level}%** going into the overnight window. It will likely die before morning — put it on the charger tonight.`,
             color: 0xE67E22, // orange
             fields: [
+                { name: 'Device', value: device.profile.label, inline: true },
                 { name: 'Battery', value: `${level}%`, inline: true },
                 { name: 'Safe level', value: `${config.BEDTIME_SAFE_LEVEL}%`, inline: true },
                 { name: 'Time', value: new Date().toLocaleString('en-US', { timeZone: config.TIMEZONE }), inline: true }
@@ -108,31 +112,38 @@ class LocalDashboardServer {
     }
 
     /**
-     * Runs on a timer (not per-request, since a dead Kindle stops sending
-     * requests). Fires once when the Kindle goes quiet during active hours
-     * and stays quiet past the threshold; re-arms on the next fetch.
+     * Runs on a timer (not per-request, since a dead device stops sending
+     * requests). Fires once per device that goes quiet during active hours and
+     * stays quiet past the threshold; re-arms on that device's next fetch.
+     *
+     * Walks every monitored device independently — one screen still polling
+     * must never vouch for another that has gone dark.
      */
     checkStaleness() {
         if (!this.discordWebhookUrl) return;
 
-        const decision = this.stalenessAlert.evaluate(Date.now());
-        if (!decision.notify) return;
+        const now = Date.now();
+        for (const device of this.deviceAlerts.stalenessWatched()) {
+            const decision = device.staleness.evaluate(now);
+            if (!decision.notify) continue;
 
-        this.log(`Kindle silent for ${decision.silentMinutes} min during active hours — sending Discord notification`, 'WARN');
+            this.log(`[${device.id}] Silent for ${decision.silentMinutes} min during active hours — sending Discord notification`, 'WARN');
 
-        sendDiscordNotification(this.discordWebhookUrl, {
-            title: 'Kindle Dashboard Silent',
-            description: `No fetch from the Kindle in **${decision.silentMinutes} min** during active hours. It may be dead, crashed, or off WiFi.`,
-            color: 0xED4245,
-            fields: [
-                { name: 'Silent for', value: `${decision.silentMinutes} min`, inline: true },
-                { name: 'Time', value: new Date().toLocaleString('en-US', { timeZone: config.TIMEZONE }), inline: true }
-            ]
-        }).then(() => {
-            this.log('Discord notification sent');
-        }).catch((err) => {
-            this.log(`Discord notification error: ${err.message}`, 'ERROR');
-        });
+            sendDiscordNotification(this.discordWebhookUrl, {
+                title: `${device.profile.label} Silent`,
+                description: `No fetch from **${device.profile.label}** in **${decision.silentMinutes} min** during active hours. It may be dead, crashed, or off WiFi.`,
+                color: 0xED4245,
+                fields: [
+                    { name: 'Device', value: device.profile.label, inline: true },
+                    { name: 'Silent for', value: `${decision.silentMinutes} min`, inline: true },
+                    { name: 'Time', value: new Date().toLocaleString('en-US', { timeZone: config.TIMEZONE }), inline: true }
+                ]
+            }).then(() => {
+                this.log('Discord notification sent');
+            }).catch((err) => {
+                this.log(`Discord notification error: ${err.message}`, 'ERROR');
+            });
+        }
     }
 
     /**
@@ -140,6 +151,11 @@ class LocalDashboardServer {
      * The Kindle appends ?battery=N&charging=N&t=... to every fetch; including
      * them made every request a cache miss (and a fresh render + Python
      * subprocess). Only params that change the rendered image belong here.
+     *
+     * `device` is deliberately NOT stripped: it identifies which screen is
+     * asking, and the two screens are meant to render different content. It
+     * costs one extra cache entry today (both devices currently resolve to the
+     * same layout) and is correct the moment they diverge.
      *
      * layoutOverride pins the key to the *resolved* layout (from
      * resolveLayout()) rather than the raw query string — without this, a
@@ -227,16 +243,19 @@ class LocalDashboardServer {
             const cacheKey = this.getCacheKey(req.url, resolvedLayout);
             const cached = this.imageCache.get(cacheKey);
 
-            // Any fetch at all proves the Kindle is alive, independent of
-            // whether it sent battery telemetry.
-            this.stalenessAlert.recordFetch(Date.now());
+            // Any fetch at all proves the device is alive, independent of
+            // whether it sent battery telemetry — but it only vouches for the
+            // device that sent it. A missing ?device= means the desk Kindle,
+            // which has always fetched without one.
+            const deviceId = this.deviceAlerts.resolveId(parsedUrl.searchParams.get('device'));
+            const device = this.deviceAlerts.recordFetch(deviceId, Date.now());
 
-            // Check battery level from Kindle
+            // Check battery level from the device
             const batteryLevel = parsedUrl.searchParams.get('battery');
             const chargingStatus = parsedUrl.searchParams.get('charging');
             if (batteryLevel) {
-                this.checkBatteryAndNotify(batteryLevel, chargingStatus);
-                this.checkBedtimeAndNotify(batteryLevel, chargingStatus);
+                this.checkBatteryAndNotify(device, batteryLevel, chargingStatus);
+                this.checkBedtimeAndNotify(device, batteryLevel, chargingStatus);
             }
 
             // Construct deviceStats from query params
@@ -312,6 +331,20 @@ class LocalDashboardServer {
         this.log('Health check requested');
     }
 
+    async handleApiTransit(req, res) {
+        try {
+            const data = await this.services.transit.getTransitData();
+            res.writeHead(200, {
+                'Content-Type': 'application/json',
+                'X-Generated-By': 'Kindle Dashboard Server'
+            });
+            res.end(JSON.stringify(data, null, 2));
+            this.log('Transit data served');
+        } catch (error) {
+            this.handleError(res, error, 'Failed to fetch transit data');
+        }
+    }
+
     handleApiInfo(req, res) {
         const info = {
             title: 'Kindle Dashboard Local Server',
@@ -325,6 +358,10 @@ class LocalDashboardServer {
                         layout: 'string - Layout name (weather, compact, minimal, device)'
                     },
                     example: '/dashboard?layout=weather'
+                },
+                '/api/transit': {
+                    method: 'GET',
+                    description: 'CTA bus/train arrivals + alerts near home, Loop-bound (JSON)'
                 },
                 '/health': {
                     method: 'GET',
@@ -391,6 +428,15 @@ class LocalDashboardServer {
                 case '/dashboard.png':
                     if (req.method === 'GET') {
                         await this.handleDashboardRequest(req, res, parsedUrl);
+                    } else {
+                        res.writeHead(405, { 'Allow': 'GET' });
+                        res.end('Method Not Allowed');
+                    }
+                    break;
+
+                case '/api/transit':
+                    if (req.method === 'GET') {
+                        await this.handleApiTransit(req, res);
                     } else {
                         res.writeHead(405, { 'Allow': 'GET' });
                         res.end('Method Not Allowed');
