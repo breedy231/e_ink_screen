@@ -9,7 +9,7 @@
     "trmnl:preview": "$npm_package_config_python trmnl-preview.py",
     "trmnl:next": "$npm_package_config_python trmnl-preview.py --next",
     "trmnl:serve": "$npm_package_config_python trmnl-preview.py --serve",
-    "test": "node pokemon-service.test.js && node battery-alert.test.js && node staleness-alert.test.js && node bedtime-alert.test.js && node device-alerts.test.js && node trmnl-service.test.js && node transit-service.test.js && node todoist-service.test.js && node fitness-service.test.js && node rss-service.test.js",
+    "test": "node pokemon-service.test.js && node battery-alert.test.js && node staleness-alert.test.js && node bedtime-alert.test.js && node device-alerts.test.js && node trmnl-service.test.js && node transit-service.test.js && node todoist-service.test.js && node fitness-service.test.js && node rss-service.test.js && node trmnl-staleness-alert.test.js",
     "test:nodeps": "node battery-alert.test.js && node staleness-alert.test.js && node bedtime-alert.test.js && node device-alerts.test.js"
   },
   "keywords": [

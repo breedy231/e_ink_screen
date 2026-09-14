@@ -100,6 +100,9 @@ module.exports = {
     TRMNL_CACHE_TTL_MS: parseInt(process.env.TRMNL_CACHE_TTL_MS, 10) || 600000,
     TRMNL_ROTATION: process.env.TRMNL_ROTATION || 'cw',   // 'cw' | 'ccw'
     TRMNL_SLOT_MINUTES: parseInt(process.env.TRMNL_SLOT_MINUTES, 10) || 15,
+    // How old the last good BYOS screen may get, while fetches fail, before
+    // the Discord staleness alert fires. See trmnl-staleness-alert.js.
+    TRMNL_STALENESS_THRESHOLD_MS: parseInt(process.env.TRMNL_STALENESS_THRESHOLD_MS, 10) || 30 * 60 * 1000,
 
     // Python for e-ink optimization scripts
     PYTHON_BIN: resolvePythonBin()
