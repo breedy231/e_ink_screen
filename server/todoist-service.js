@@ -14,7 +14,7 @@ const config = require('./config');
  * fixture — matching how CTA behaved before its keys arrived.
  */
 
-const TODOIST_API_BASE = 'https://api.todoist.com/rest/v2';
+const TODOIST_API_BASE = 'https://api.todoist.com/api/v1';
 const MAX_TASKS = 12;
 
 class TodoistService {
@@ -93,12 +93,30 @@ class TodoistService {
 
     async fetchTasksAndProjects() {
         if (!this.apiToken) return null;
-        const filter = encodeURIComponent('overdue | today');
-        const [tasks, projects] = await Promise.all([
-            this.httpGetJson(`/tasks?filter=${filter}`),
-            this.httpGetJson('/projects')
+        // Unified v1 API (REST v2 started returning 410 Gone in 2026).
+        // Both endpoints wrap payloads in { results, next_cursor }.
+        const query = encodeURIComponent('overdue | today');
+        const [tasksResp, projectsResp] = await Promise.all([
+            this.httpGetJson(`/tasks/filter?query=${query}&limit=100`),
+            this.httpGetJson('/projects?limit=200')
         ]);
-        return { tasks, projects };
+        return {
+            tasks: (tasksResp && tasksResp.results) || [],
+            projects: (projectsResp && projectsResp.results) || []
+        };
+    }
+
+    /**
+     * v1 folds any due time into `due.date` as a naive local datetime
+     * ("2026-09-14T22:30:00"); date-only tasks stay "2026-09-14". Format
+     * the clock time directly off the string — no Date/timezone round trip.
+     */
+    formatDueTime(dueDate) {
+        if (!dueDate || !dueDate.includes('T')) return null;
+        const [h, m] = dueDate.slice(11, 16).split(':').map(Number);
+        const suffix = h >= 12 ? 'PM' : 'AM';
+        const hour12 = h % 12 === 0 ? 12 : h % 12;
+        return `${hour12}:${String(m).padStart(2, '0')} ${suffix}`;
     }
 
     /**
@@ -113,16 +131,11 @@ class TodoistService {
         const tasks = ((raw && raw.tasks) || [])
             .map(t => {
                 const dueDate = t.due && t.due.date ? t.due.date.slice(0, 10) : null;
-                const dueTime = t.due && t.due.datetime
-                    ? new Date(t.due.datetime).toLocaleTimeString('en-US', {
-                        hour: 'numeric', minute: '2-digit', timeZone: config.TIMEZONE
-                    })
-                    : null;
                 return {
                     content: t.content,
                     project: projectNames[t.project_id] || null,
                     priority: 5 - (t.priority || 1),   // API 4..1 -> display P1..P4
-                    time: dueTime,
+                    time: this.formatDueTime(t.due && t.due.date),
                     isOverdue: dueDate !== null && dueDate < today
                 };
             })
