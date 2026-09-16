@@ -83,13 +83,13 @@ class TrmnlService {
      * uses. Response fields of interest: image_url (absolute or relative),
      * refresh_rate.
      */
-    fetchDisplayJson() {
+    fetchDisplayJson(timeoutMs = this.requestTimeout) {
         return new Promise((resolve, reject) => {
             const displayUrl = new URL('/api/display', this.baseUrl);
             const client = displayUrl.protocol === 'https:' ? https : http;
 
             const req = client.get(displayUrl, {
-                timeout: this.requestTimeout,
+                timeout: timeoutMs,
                 headers: {
                     ID: this.deviceMac,
                     'Access-Token': this.apiKey
@@ -113,7 +113,7 @@ class TrmnlService {
             });
 
             req.on('timeout', () => {
-                req.destroy(new Error(`TRMNL display API timed out after ${this.requestTimeout}ms`));
+                req.destroy(new Error(`TRMNL display API timed out after ${timeoutMs}ms`));
             });
             req.on('error', (error) => {
                 reject(new Error(`Failed to reach TRMNL display API: ${error.message}`));
@@ -195,6 +195,32 @@ class TrmnlService {
             height,
             source: 'mock'
         };
+    }
+
+    /**
+     * Manually step the playlist forward one screen: hit /api/display now
+     * (BYOS advances on every authenticated poll), download the new image,
+     * and refresh the disk cache so the next Kindle poll serves it without
+     * waiting out TRMNL_CACHE_TTL_MS. BYOS renders mashups synchronously
+     * (60-90s of headless Chromium), hence the long timeout.
+     */
+    async forceAdvance() {
+        if (this.mockData || !this.isConfigured()) {
+            throw new Error('TRMNL is not configured');
+        }
+
+        const display = await this.fetchDisplayJson(120000);
+        if (!display.image_url) {
+            throw new Error('TRMNL display response missing image_url');
+        }
+
+        await this.downloadImage(display.image_url);
+
+        const meta = { refreshRate: display.refresh_rate || null, fetchedAt: Date.now() };
+        this.saveMeta(meta);
+        this._lastFailureAt = 0;
+
+        return { imagePath: this.getScreenPath(), ...meta, source: 'api' };
     }
 
     /**

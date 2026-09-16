@@ -248,6 +248,29 @@ class LocalDashboardServer {
         });
     }
 
+    /**
+     * Manual "next screen" button (phone-bookmarkable). Advances the BYOS
+     * playlist, refreshes the TRMNL disk cache, and drops the rendered-PNG
+     * cache — the Kindle then shows the new screen on its next poll.
+     */
+    async handleNextScreen(req, res) {
+        try {
+            await this.services.trmnl.forceAdvance();
+            this.imageCache.clear();
+            this.log('Playlist advanced manually via /next');
+            res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+            res.end(`<!doctype html><html><head>
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>Kindle Dashboard</title></head>
+<body style="font-family:-apple-system,sans-serif; text-align:center; padding-top:15vh; background:#fff; color:#000;">
+<h1 style="font-size:2rem;">Screen advanced &#10003;</h1>
+<p style="font-size:1.1rem; color:#444;">The Kindle picks it up on its next poll (under 5 minutes).</p>
+<p style="margin-top:3rem;"><a href="/next" style="display:inline-block; padding:1.2rem 2.5rem; border:3px solid #000; border-radius:8px; text-decoration:none; color:#000; font-size:1.4rem; font-weight:bold;">Next screen &rarr;</a></p>
+</body></html>`);
+        } catch (error) {
+            this.handleError(res, error, 'Failed to advance TRMNL screen');
+        }
+    }
+
     isCacheValid(cacheEntry) {
         if (!this.cacheEnabled || !cacheEntry) return false;
         return Date.now() - cacheEntry.timestamp < this.cacheTimeout;
@@ -542,6 +565,10 @@ class LocalDashboardServer {
 
                 case '/api/rss':
                     await this.handleApiJson(res, 'RSS', () => this.services.rss.getRssData());
+                    break;
+
+                case '/next':
+                    await this.handleNextScreen(req, res);
                     break;
 
                 case '/health':
