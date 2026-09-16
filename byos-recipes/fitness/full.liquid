@@ -1,0 +1,45 @@
+<div class="view view--{{ size }}">
+  <div style="display:flex; flex-direction:column; gap:8px; padding:10px; height:100%; text-align:left;">
+
+    <div style="display:flex; justify-content:space-between; align-items:baseline; border-bottom:3px solid #000; padding-bottom:4px;">
+      <span style="font-size:22px; font-weight:bold;">Fitness</span>
+      {% if data.weight %}
+      <span style="font-size:16px;"><b>{{ data.weight.lb }} lb</b> <span style="font-size:11px;">({{ data.weight.date }})</span></span>
+      {% endif %}
+    </div>
+
+    <div style="display:flex; gap:20px;">
+      {% assign calpct = data.nutrition.calories.current | times: 100.0 | divided_by: data.nutrition.calories.target | round | at_most: 100 %}
+      {% assign propct = data.nutrition.protein.current | times: 100.0 | divided_by: data.nutrition.protein.target | round | at_most: 100 %}
+      <div style="flex:1;">
+        <div style="display:flex; justify-content:space-between; font-size:14px;">
+          <b>Calories</b><span>{{ data.nutrition.calories.current }} / {{ data.nutrition.calories.target }}</span>
+        </div>
+        <div style="border:2px solid #000; height:16px;"><div style="background:#000; height:100%; width:{{ calpct }}%;"></div></div>
+      </div>
+      <div style="flex:1;">
+        <div style="display:flex; justify-content:space-between; font-size:14px;">
+          <b>Protein</b><span>{{ data.nutrition.protein.current }}g / {{ data.nutrition.protein.target }}g</span>
+        </div>
+        <div style="border:2px solid #000; height:16px;"><div style="background:#000; height:100%; width:{{ propct }}%;"></div></div>
+      </div>
+    </div>
+    {% if data.nutrition.isStale %}
+    <div style="font-size:11px;">Nutrition data from {{ data.nutrition.date }} (stale)</div>
+    {% endif %}
+
+    <div style="font-size:16px; font-weight:bold; border-bottom:2px solid #000; padding-bottom:2px;">Recovery</div>
+    {% if data.fullyRecovered %}
+    <div style="font-size:18px; font-weight:bold;">All muscle groups recovered — train anything.</div>
+    {% else %}
+    <div style="display:flex; flex-wrap:wrap; gap:6px 16px;">
+      {% for m in data.recovery %}
+      <div style="display:flex; gap:6px; align-items:baseline; min-width:150px;">
+        <span style="font-size:13px; min-width:78px;{% if m.pct < 70 %} font-weight:bold;{% endif %}">{{ m.muscle | capitalize }}</span>
+        <span style="font-size:15px; font-weight:bold;{% if m.pct < 70 %} background:#000; color:#fff; padding:0 4px;{% endif %}">{{ m.pct }}%</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+</div>

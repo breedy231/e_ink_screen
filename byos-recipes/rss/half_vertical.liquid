@@ -1,0 +1,15 @@
+<div class="view view--{{ size }}">
+  <div style="display:flex; flex-direction:column; gap:6px; padding:6px; height:100%; text-align:left;">
+    <div style="display:flex; justify-content:space-between; border-bottom:2px solid #000; padding-bottom:2px;">
+      <span style="font-size:15px; font-weight:bold;">Front Page</span>
+      <span style="font-size:10px;">{{ data.generated | split: 'T' | last | slice: 0, 5 }}</span>
+    </div>
+    {% for th in data.themes limit:4 %}
+    <div style="border-bottom:1px solid #000; padding-bottom:3px;">
+      <div style="font-size:13px; font-weight:bold;">{{ th.title | truncate: 36 }}</div>
+      <div style="font-size:11px; line-height:1.25;">{{ th.summary | truncate: 90 }}</div>
+    </div>
+    {% endfor %}
+    <div style="margin-top:auto; font-size:10px;">+{{ data.alsoCount }} stories &middot; {{ data.watchCount }} videos</div>
+  </div>
+</div>

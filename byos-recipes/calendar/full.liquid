@@ -1,0 +1,39 @@
+<div class="view view--{{ size }}">
+  <div style="display:flex; flex-direction:column; gap:8px; padding:10px; height:100%; text-align:left;">
+
+    <div style="display:flex; gap:16px; flex:1;">
+      <div style="flex:1; display:flex; flex-direction:column; gap:6px;">
+        <div style="font-size:20px; font-weight:bold; border-bottom:3px solid #000; padding-bottom:3px;">Today</div>
+        {% if data.today.size == 0 %}
+        <div style="font-size:16px;">Nothing scheduled.</div>
+        {% endif %}
+        {% for e in data.today limit:6 %}
+        <div style="display:flex; gap:10px; align-items:baseline; border-bottom:1px solid #000; padding-bottom:3px;">
+          <span style="font-size:14px; font-weight:bold; min-width:70px;">{{ e.time }}</span>
+          <span style="font-size:16px;">{{ e.name | truncate: 30 }}</span>
+        </div>
+        {% endfor %}
+      </div>
+
+      <div style="flex:1; display:flex; flex-direction:column; gap:6px;">
+        <div style="font-size:20px; font-weight:bold; border-bottom:3px solid #000; padding-bottom:3px;">Tomorrow</div>
+        {% if data.tomorrow.size == 0 %}
+        <div style="font-size:16px;">Nothing scheduled.</div>
+        {% endif %}
+        {% for e in data.tomorrow limit:6 %}
+        <div style="display:flex; gap:10px; align-items:baseline; border-bottom:1px solid #000; padding-bottom:3px;">
+          <span style="font-size:14px; font-weight:bold; min-width:70px;">{{ e.time }}</span>
+          <span style="font-size:16px;">{{ e.name | truncate: 30 }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    {% if data.upcoming.size > 0 %}
+    <div style="border-top:2px solid #000; padding-top:4px; font-size:13px;">
+      <b>Upcoming:</b>
+      {% for e in data.upcoming limit:3 %}{{ e.time }} {{ e.name | truncate: 22 }}{% unless forloop.last %} &middot; {% endunless %}{% endfor %}
+    </div>
+    {% endif %}
+  </div>
+</div>

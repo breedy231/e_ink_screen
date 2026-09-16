@@ -1,0 +1,23 @@
+<div class="view view--{{ size }}">
+  <div style="display:flex; flex-direction:column; gap:5px; padding:6px; height:100%; text-align:left;">
+
+    <div style="font-size:15px; font-weight:bold; border-bottom:2px solid #000; padding-bottom:2px;">Today</div>
+    {% if data.today.size == 0 %}
+    <div style="font-size:13px;">Nothing scheduled.</div>
+    {% endif %}
+    {% for e in data.today limit:5 %}
+    <div style="border-bottom:1px solid #000; padding-bottom:2px;">
+      <div style="font-size:11px; font-weight:bold;">{{ e.time }}</div>
+      <div style="font-size:13px;">{{ e.name | truncate: 32 }}</div>
+    </div>
+    {% endfor %}
+
+    <div style="font-size:15px; font-weight:bold; border-bottom:2px solid #000; padding-bottom:2px; margin-top:4px;">Tomorrow</div>
+    {% if data.tomorrow.size == 0 %}
+    <div style="font-size:13px;">Nothing scheduled.</div>
+    {% endif %}
+    {% for e in data.tomorrow limit:4 %}
+    <div style="font-size:12px;">{{ e.time }} &middot; {{ e.name | truncate: 26 }}</div>
+    {% endfor %}
+  </div>
+</div>

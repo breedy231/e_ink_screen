@@ -6,6 +6,7 @@ const config = require('./config');
 const { generateDashboard, optimizeForEink, createServices } = require('./generate');
 const { sendDiscordNotification } = require('./notify');
 const { DeviceAlertRegistry } = require('./device-alerts');
+const { TrmnlStalenessAlertState } = require('./trmnl-staleness-alert');
 
 /**
  * Local HTTP Server for Kindle Dashboard
@@ -40,6 +41,13 @@ class LocalDashboardServer {
 
         // Long-lived services so weather/calendar caches persist across requests
         this.services = createServices({ mockData: false });
+
+        // Pi->BYOS leg watchdog — the Kindle-side staleness alert can't see
+        // this failure mode (the Kindle keeps polling happily while the Pi
+        // serves it an ever-older cached TRMNL screen).
+        this.trmnlStaleness = new TrmnlStalenessAlertState({
+            thresholdMs: config.TRMNL_STALENESS_THRESHOLD_MS
+        });
     }
 
     log(message, level = 'INFO') {
@@ -200,11 +208,44 @@ class LocalDashboardServer {
         if (!wantsTrmnl) return this.layout;
 
         const trmnlData = await this.services.trmnl.getFormattedTrmnl();
+        this.checkTrmnlStalenessAndNotify(trmnlData);
         if (!trmnlData) {
             this.log('TRMNL_MODE wants the trmnl layout but no screen is available; falling back to default layout', 'WARN');
             return this.layout;
         }
         return 'trmnl';
+    }
+
+    /**
+     * Pi->BYOS staleness. Evaluated on each poll that wants the trmnl
+     * layout; fires once per episode, re-arms on the next good fetch.
+     */
+    checkTrmnlStalenessAndNotify(trmnlData) {
+        if (!this.discordWebhookUrl) return;
+
+        const decision = this.trmnlStaleness.evaluate(trmnlData, Date.now());
+        if (!decision.notify) return;
+
+        this.log(`TRMNL screen stale for ${decision.staleMinutes} min — sending Discord notification`, 'WARN');
+
+        const description = decision.hadScreen
+            ? `BYOS screen fetches have been failing — the Kindle is showing a screen last fetched **${decision.staleMinutes} min ago**. Check the BYOS container / Mac reachability (\`${config.TRMNL_BASE_URL}\`).`
+            : `BYOS screen fetches have been failing for **${decision.staleMinutes} min** and there is no cached screen at all — the Kindle is on the fallback layout. Check the BYOS container / Mac reachability (\`${config.TRMNL_BASE_URL}\`).`;
+
+        sendDiscordNotification(this.discordWebhookUrl, {
+            title: 'Kindle Dashboard Screen Stale',
+            description,
+            color: 0xE67E22, // orange — screen still shows something, unlike device-silent red
+            fields: [
+                { name: 'Stale for', value: `${decision.staleMinutes} min`, inline: true },
+                { name: 'BYOS', value: String(config.TRMNL_BASE_URL), inline: true },
+                { name: 'Time', value: new Date().toLocaleString('en-US', { timeZone: config.TIMEZONE }), inline: true }
+            ]
+        }).then(() => {
+            this.log('Discord notification sent');
+        }).catch((err) => {
+            this.log(`Discord notification error: ${err.message}`, 'ERROR');
+        });
     }
 
     isCacheValid(cacheEntry) {
@@ -345,6 +386,34 @@ class LocalDashboardServer {
         }
     }
 
+    async handleApiJson(res, name, fetchFn) {
+        try {
+            const data = await fetchFn();
+            res.writeHead(200, {
+                'Content-Type': 'application/json',
+                'X-Generated-By': 'Kindle Dashboard Server'
+            });
+            res.end(JSON.stringify(data, null, 2));
+            this.log(`${name} data served`);
+        } catch (error) {
+            this.handleError(res, error, `Failed to fetch ${name} data`);
+        }
+    }
+
+    async getCalendarForApi() {
+        // Unconfigured -> mock rather than empty, matching the other tile
+        // services where "no credentials yet" still renders a real-looking
+        // screen (the source field says which it is).
+        const calendar = this.services.calendar;
+        const data = await calendar.getCalendarData();
+        const formatted = calendar.formatForDashboard(
+            data.source === 'unconfigured'
+                ? { _source: 'mock', ...calendar.getMockCalendarData() }
+                : data
+        );
+        return { ...formatted, _timestamp: Date.now() };
+    }
+
     handleApiInfo(req, res) {
         const info = {
             title: 'Kindle Dashboard Local Server',
@@ -362,6 +431,22 @@ class LocalDashboardServer {
                 '/api/transit': {
                     method: 'GET',
                     description: 'CTA bus/train arrivals + alerts near home, Loop-bound (JSON)'
+                },
+                '/api/todoist': {
+                    method: 'GET',
+                    description: 'Todoist today + overdue tasks (JSON)'
+                },
+                '/api/calendar': {
+                    method: 'GET',
+                    description: 'Calendar events: today / tomorrow / upcoming (JSON)'
+                },
+                '/api/fitness': {
+                    method: 'GET',
+                    description: 'FitLocal daily numbers: nutrition, recovery, weight (JSON)'
+                },
+                '/api/rss': {
+                    method: 'GET',
+                    description: 'RSS digest headlines from the nightly rss-digest run (JSON)'
                 },
                 '/health': {
                     method: 'GET',
@@ -441,6 +526,22 @@ class LocalDashboardServer {
                         res.writeHead(405, { 'Allow': 'GET' });
                         res.end('Method Not Allowed');
                     }
+                    break;
+
+                case '/api/todoist':
+                    await this.handleApiJson(res, 'Todoist', () => this.services.todoist.getTodoistData());
+                    break;
+
+                case '/api/calendar':
+                    await this.handleApiJson(res, 'Calendar', () => this.getCalendarForApi());
+                    break;
+
+                case '/api/fitness':
+                    await this.handleApiJson(res, 'Fitness', () => this.services.fitness.getFitnessData());
+                    break;
+
+                case '/api/rss':
+                    await this.handleApiJson(res, 'RSS', () => this.services.rss.getRssData());
                     break;
 
                 case '/health':

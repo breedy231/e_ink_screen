@@ -1,0 +1,59 @@
+{
+  "_todayIso": "2026-09-10",
+  "projects": [
+    {
+      "id": "p1",
+      "name": "Inbox"
+    },
+    {
+      "id": "p2",
+      "name": "Finance"
+    },
+    {
+      "id": "p3",
+      "name": "Home"
+    }
+  ],
+  "tasks": [
+    {
+      "content": "Pay water bill",
+      "project_id": "p2",
+      "priority": 4,
+      "due": {
+        "date": "2026-09-08"
+      }
+    },
+    {
+      "content": "Call vet about Bella",
+      "project_id": "p1",
+      "priority": 1,
+      "due": {
+        "date": "2026-09-10"
+      }
+    },
+    {
+      "content": "Dec LTCG true-up prep",
+      "project_id": "p2",
+      "priority": 3,
+      "due": {
+        "date": "2026-09-10T10:00:00"
+      }
+    },
+    {
+      "content": "Swap furnace filter",
+      "project_id": "p3",
+      "priority": 2,
+      "due": {
+        "date": "2026-09-10"
+      }
+    },
+    {
+      "content": "Book dentist",
+      "project_id": "p1",
+      "priority": 1,
+      "due": {
+        "date": "2026-09-09"
+      }
+    }
+  ]
+}

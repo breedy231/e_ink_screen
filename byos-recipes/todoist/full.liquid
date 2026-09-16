@@ -1,0 +1,31 @@
+<div class="view view--{{ size }}">
+  <div style="display:flex; flex-direction:column; gap:12px; padding:14px; height:100%; text-align:left;">
+
+    <div style="display:flex; justify-content:space-between; align-items:baseline; border-bottom:4px solid #000; padding-bottom:6px;">
+      <span style="font-size:34px; font-weight:bold;">Tasks</span>
+      <span style="font-size:19px;">
+        {{ data.counts.today }} today{% if data.counts.overdue > 0 %} &middot; {{ data.counts.overdue }} overdue{% endif %}
+      </span>
+    </div>
+
+    {% if data.tasks.size == 0 %}
+    <div style="font-size:28px; margin-top:20px;">All clear.</div>
+    {% endif %}
+
+    {% for t in data.tasks limit:6 %}
+    <div style="display:flex; align-items:baseline; gap:14px; border-bottom:1px solid #000; padding-bottom:6px;">
+      {% if t.isOverdue %}
+      <span style="font-size:16px; font-weight:bold; border:2px solid #000; padding:0 6px;">OVERDUE</span>
+      {% elsif t.priority <= 2 %}
+      <span style="font-size:16px; font-weight:bold; background:#000; color:#fff; padding:0 7px;">P{{ t.priority }}</span>
+      {% endif %}
+      <span style="font-size:27px; font-weight:bold; flex:1;">{{ t.content | truncate: 34 }}</span>
+      {% if t.time %}<span style="font-size:20px;">{{ t.time }}</span>{% endif %}
+    </div>
+    {% endfor %}
+
+    {% if data.counts.total > 6 %}
+    <div style="font-size:17px;">+{{ data.counts.total | minus: 6 }} more</div>
+    {% endif %}
+  </div>
+</div>

@@ -118,7 +118,9 @@ def fetch_device_screen(cfg, advance):
     """
     endpoint = "/api/display" if advance else "/api/current_screen"
     url = urllib.parse.urljoin(cfg["TRMNL_BASE_URL"], endpoint)
-    body, _ = http_get(url, auth_headers(cfg))
+    # /api/display renders synchronously before responding; a mashup means
+    # several headless-Chromium renders back to back, easily 60-90s.
+    body, _ = http_get(url, auth_headers(cfg), timeout=180)
 
     try:
         payload = json.loads(body)
@@ -132,6 +134,14 @@ def fetch_device_screen(cfg, advance):
     # byos_laravel builds this from its own APP_URL, which has been wrong in
     # production before — resolve relative URLs, and say which host we hit.
     image_url = urllib.parse.urljoin(cfg["TRMNL_BASE_URL"], image_url)
+    # BYOS builds image_url from its APP_URL, which is set for the Pi's
+    # benefit (mDNS .local name). This Mac can't always resolve its own
+    # .local name from python, and we already reached BYOS via
+    # TRMNL_BASE_URL — so download through that host instead.
+    base = urllib.parse.urlparse(cfg["TRMNL_BASE_URL"])
+    image_url = urllib.parse.urlparse(image_url)._replace(
+        scheme=base.scheme, netloc=base.netloc
+    ).geturl()
     print(f"  {endpoint} -> {image_url}")
     data, _ = http_get(image_url)
     return data, payload

@@ -1,0 +1,66 @@
+{
+  "nutrition": {
+    "date": "2026-09-10",
+    "snapshotDate": "2026-09-09",
+    "isStale": true,
+    "calories": {
+      "current": 703,
+      "target": 1800
+    },
+    "protein": {
+      "current": 52,
+      "target": 170
+    },
+    "isInCut": false,
+    "deficitMagnitude": 1597,
+    "deficitPct": 0.69
+  },
+  "recovery": {
+    "muscles": [
+      {
+        "name": "chest",
+        "recoveryPct": 100
+      },
+      {
+        "name": "shoulders",
+        "recoveryPct": 72
+      },
+      {
+        "name": "triceps",
+        "recoveryPct": 85
+      },
+      {
+        "name": "back",
+        "recoveryPct": 100
+      },
+      {
+        "name": "biceps",
+        "recoveryPct": 100
+      },
+      {
+        "name": "quads",
+        "recoveryPct": 55
+      },
+      {
+        "name": "hamstrings",
+        "recoveryPct": 60
+      },
+      {
+        "name": "glutes",
+        "recoveryPct": 90
+      },
+      {
+        "name": "calves",
+        "recoveryPct": 100
+      },
+      {
+        "name": "core",
+        "recoveryPct": 95
+      }
+    ]
+  },
+  "latestSnapshot": {
+    "date": "2026-06-24",
+    "bodyWeightKg": 74.71
+  }
+}
