@@ -7,8 +7,8 @@
 #     real recipes: CTA Transit (10), Weather Chicago (11), Todoist Today (12),
 #     Calendar (13), Fitness (14), RSS Digest (15).
 #   - Creates two scheduled playlists on device 1:
-#       Morning        06:00-11:00  mashup(Zen+Weather|CTA), Fitness, Todoist
-#       Day & Evening  11:00-22:00  stacked mashup(Calendar/Tasks), RSS, mashup(Zen+Weather|CTA)
+#       Morning        06:00-11:00  2x2 Morning Board (CTA|Zen / Weather|Fitness), Fitness, Todoist
+#       Day & Evening  11:00-22:00  2x2 Day Board (Calendar|Weather / Tasks|CTA), RSS, Zen quote
 #   - Deactivates the old "Main Rotation" and "test" playlists.
 set -euo pipefail
 
@@ -22,15 +22,16 @@ docker exec prod-app-1 php -r '
 $pdo = new PDO("sqlite:/var/www/html/database/storage/database.sqlite");
 $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 $now = gmdate("Y-m-d H:i:s");
-$mashup = json_encode([
-    "mashup_layout" => "2Lx1R",
-    "mashup_name" => "Zen + Weather + CTA",
-    "plugin_ids" => [3, 11, 10],   // pos0 Zen quadrant, pos1 Weather quadrant, pos2 CTA half_vertical
+// 2x2 slots render row-major: pos0 TL, pos1 TR, pos2 BL, pos3 BR.
+$morningBoard = json_encode([
+    "mashup_layout" => "2x2",
+    "mashup_name" => "Morning Board",
+    "plugin_ids" => [10, 3, 11, 14],   // CTA TL, Zen TR, Weather BL, Fitness BR
 ]);
-$stack = json_encode([
-    "mashup_layout" => "1Tx1B",
-    "mashup_name" => "Calendar + Tasks",
-    "plugin_ids" => [13, 12],      // pos0 Calendar half_horizontal (top), pos1 Todoist (bottom)
+$dayBoard = json_encode([
+    "mashup_layout" => "2x2",
+    "mashup_name" => "Day Board",
+    "plugin_ids" => [13, 11, 12, 10],  // Calendar TL, Weather TR, Tasks BL, CTA BR
 ]);
 
 $pdo->exec("UPDATE plugins SET alias = 1 WHERE id IN (10,11,12,13,14,15)");
@@ -57,14 +58,14 @@ function addItem(PDO $pdo, int $playlistId, int $order, ?int $pluginId, ?string 
 }
 
 $morning = playlistId($pdo, "Morning", "06:00", "11:00", $now);
-addItem($pdo, $morning, 1, 3,  $mashup, $now);   // Zen+Weather|CTA
-addItem($pdo, $morning, 2, 14, null,    $now);   // Fitness
-addItem($pdo, $morning, 3, 12, null,    $now);   // Todoist
+addItem($pdo, $morning, 1, 10, $morningBoard, $now);   // 2x2 CTA/Zen/Weather/Fitness
+addItem($pdo, $morning, 2, 14, null,          $now);   // Fitness
+addItem($pdo, $morning, 3, 12, null,          $now);   // Todoist
 
 $evening = playlistId($pdo, "Day & Evening", "11:00", "22:00", $now);
-addItem($pdo, $evening, 1, 13, $stack,  $now);   // Calendar over Tasks (1Tx1B)
-addItem($pdo, $evening, 3, 15, null,    $now);   // RSS
-addItem($pdo, $evening, 4, 3,  $mashup, $now);   // Zen+Weather|CTA
+addItem($pdo, $evening, 1, 13, $dayBoard, $now);       // 2x2 Calendar/Weather/Tasks/CTA
+addItem($pdo, $evening, 3, 15, null,      $now);       // RSS
+addItem($pdo, $evening, 4, 3,  null,      $now);       // Zen quote fullscreen
 
 $pdo->exec("UPDATE playlists SET is_active = 0 WHERE name IN (\"Main Rotation\", \"test\")");
 echo "old playlists deactivated\n";
