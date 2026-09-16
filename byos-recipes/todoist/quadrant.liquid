@@ -7,8 +7,8 @@
     {% if data.tasks.size == 0 %}
     <div style="font-size:24px;">All clear.</div>
     {% endif %}
-    {% for t in data.tasks limit:3 %}
-    <div style="font-size:24px; font-weight:bold; line-height:1.3;">
+    {% for t in data.tasks limit:6 %}
+    <div style="font-size:24px; font-weight:bold; line-height:1.25;">
       {% if t.isOverdue %}&#9888; {% endif %}{{ t.content | truncate: 20 }}
     </div>
     {% endfor %}

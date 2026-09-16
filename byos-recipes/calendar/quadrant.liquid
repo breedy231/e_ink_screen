@@ -8,7 +8,7 @@
     <div style="font-size:24px;">Nothing scheduled.</div>
     {% endif %}
     {% for e in data.today limit:3 %}
-    <div style="font-size:24px; line-height:1.3;"><b>{{ e.time }}</b> {{ e.name | truncate: 18 }}</div>
+    <div style="font-size:24px; line-height:1.25;"><b>{{ e.time }}</b> {{ e.name }}</div>
     {% endfor %}
   </div>
 </div>

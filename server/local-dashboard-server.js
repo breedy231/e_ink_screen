@@ -48,6 +48,11 @@ class LocalDashboardServer {
         this.trmnlStaleness = new TrmnlStalenessAlertState({
             thresholdMs: config.TRMNL_STALENESS_THRESHOLD_MS
         });
+
+        // Raised by /next; the Kindle loop polls /api/poke between full
+        // fetches and refreshes immediately when this advances (seconds
+        // epoch — busybox sh arithmetic is safer below 32 bits).
+        this.pokeAt = 0;
     }
 
     log(message, level = 'INFO') {
@@ -257,18 +262,24 @@ class LocalDashboardServer {
         try {
             await this.services.trmnl.forceAdvance();
             this.imageCache.clear();
+            this.pokeAt = Math.floor(Date.now() / 1000);
             this.log('Playlist advanced manually via /next');
             res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
             res.end(`<!doctype html><html><head>
 <meta name="viewport" content="width=device-width, initial-scale=1"><title>Kindle Dashboard</title></head>
 <body style="font-family:-apple-system,sans-serif; text-align:center; padding-top:15vh; background:#fff; color:#000;">
 <h1 style="font-size:2rem;">Screen advanced &#10003;</h1>
-<p style="font-size:1.1rem; color:#444;">The Kindle picks it up on its next poll (under 5 minutes).</p>
+<p style="font-size:1.1rem; color:#444;">The Kindle refreshes shortly.</p>
 <p style="margin-top:3rem;"><a href="/next" style="display:inline-block; padding:1.2rem 2.5rem; border:3px solid #000; border-radius:8px; text-decoration:none; color:#000; font-size:1.4rem; font-weight:bold;">Next screen &rarr;</a></p>
 </body></html>`);
         } catch (error) {
             this.handleError(res, error, 'Failed to advance TRMNL screen');
         }
+    }
+
+    handlePoke(req, res) {
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.end(String(this.pokeAt));
     }
 
     isCacheValid(cacheEntry) {
@@ -569,6 +580,10 @@ class LocalDashboardServer {
 
                 case '/next':
                     await this.handleNextScreen(req, res);
+                    break;
+
+                case '/api/poke':
+                    this.handlePoke(req, res);
                     break;
 
                 case '/health':

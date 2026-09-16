@@ -8,7 +8,7 @@
 
     {% for line in data.rail.lines %}
     <div style="display:flex; align-items:baseline; gap:12px;">
-      <span style="font-size:22px; font-weight:bold; flex:1;">{{ line.route }}</span>
+      <span style="font-size:22px; font-weight:bold; flex:1;">{{ line.label | split: ' ' | first }}</span>
       {% if line.arrivals.size > 0 %}
       {% for a in line.arrivals limit:2 %}
       <span style="font-size:34px; font-weight:bold; line-height:1;">{{ a.minutes }}m</span>
