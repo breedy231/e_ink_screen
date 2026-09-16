@@ -1,39 +1,39 @@
 <div class="view view--{{ size }}">
-  <div style="display:flex; flex-direction:column; gap:6px; padding:8px; height:100%; text-align:left;">
+  <div style="display:flex; flex-direction:column; gap:8px; padding:10px; height:100%; text-align:left;">
 
-    <div style="display:flex; justify-content:space-between; align-items:baseline; border-bottom:2px solid #000;">
-      <span style="font-size:18px; font-weight:bold;">CTA</span>
-      <span style="font-size:13px;">{{ data.rail.stationName }} &middot; walk {{ data.rail.walkMinutes }}m</span>
+    <div style="display:flex; justify-content:space-between; align-items:baseline; border-bottom:3px solid #000;">
+      <span style="font-size:26px; font-weight:bold;">CTA</span>
+      <span style="font-size:16px;">walk {{ data.rail.walkMinutes }}m</span>
     </div>
 
     {% for line in data.rail.lines %}
-    <div style="display:flex; align-items:baseline; gap:10px;">
-      <span style="font-size:16px; font-weight:bold; flex:1;">{{ line.route }}</span>
+    <div style="display:flex; align-items:baseline; gap:12px;">
+      <span style="font-size:22px; font-weight:bold; flex:1;">{{ line.route }}</span>
       {% if line.arrivals.size > 0 %}
       {% for a in line.arrivals limit:2 %}
-      <span style="font-size:24px; font-weight:bold; line-height:1;">{{ a.minutes }}m</span>
+      <span style="font-size:34px; font-weight:bold; line-height:1;">{{ a.minutes }}m</span>
       {% endfor %}
       {% else %}
-      <span style="font-size:15px;">--</span>
+      <span style="font-size:20px;">--</span>
       {% endif %}
     </div>
     {% endfor %}
 
     {% for stop in data.bus.stops limit:2 %}
-    <div style="display:flex; align-items:baseline; gap:10px;">
-      <span style="font-size:16px; font-weight:bold; flex:1;">{{ stop.route }}</span>
+    <div style="display:flex; align-items:baseline; gap:12px;">
+      <span style="font-size:22px; font-weight:bold; flex:1;">{{ stop.route }}</span>
       {% if stop.arrivals.size > 0 %}
       {% for a in stop.arrivals limit:2 %}
-      <span style="font-size:24px; font-weight:bold; line-height:1;">{{ a.minutes }}m</span>
+      <span style="font-size:34px; font-weight:bold; line-height:1;">{{ a.minutes }}m</span>
       {% endfor %}
       {% else %}
-      <span style="font-size:15px;">--</span>
+      <span style="font-size:20px;">--</span>
       {% endif %}
     </div>
     {% endfor %}
 
     {% unless data.hasAnyArrivals %}
-    <div style="font-size:15px;">No departures right now.</div>
+    <div style="font-size:20px;">No departures right now.</div>
     {% endunless %}
   </div>
 </div>

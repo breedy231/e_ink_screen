@@ -1,19 +1,19 @@
 <div class="view view--{{ size }}">
-  <div style="display:flex; flex-direction:column; gap:6px; padding:8px; height:100%; text-align:left;">
-    <div style="display:flex; justify-content:space-between; align-items:baseline; border-bottom:2px solid #000;">
-      <span style="font-size:18px; font-weight:bold;">Fitness</span>
-      {% if data.weight %}<span style="font-size:15px; font-weight:bold;">{{ data.weight.lb }} lb</span>{% endif %}
+  <div style="display:flex; flex-direction:column; gap:8px; padding:10px; height:100%; text-align:left;">
+    <div style="display:flex; justify-content:space-between; align-items:baseline; border-bottom:3px solid #000;">
+      <span style="font-size:26px; font-weight:bold;">Fitness</span>
+      {% if data.weight %}<span style="font-size:20px; font-weight:bold;">{{ data.weight.lb }} lb</span>{% endif %}
     </div>
     {% assign calpct = data.nutrition.calories.current | times: 100.0 | divided_by: data.nutrition.calories.target | round | at_most: 100 %}
-    <div style="display:flex; justify-content:space-between; font-size:15px;"><b>Cal</b><span>{{ data.nutrition.calories.current }}/{{ data.nutrition.calories.target }}</span></div>
-    <div style="border:2px solid #000; height:12px;"><div style="background:#000; height:100%; width:{{ calpct }}%;"></div></div>
+    <div style="display:flex; justify-content:space-between; font-size:20px;"><b>Cal</b><span>{{ data.nutrition.calories.current }}/{{ data.nutrition.calories.target }}</span></div>
+    <div style="border:2px solid #000; height:16px;"><div style="background:#000; height:100%; width:{{ calpct }}%;"></div></div>
     {% if data.fullyRecovered %}
-    <div style="font-size:16px; font-weight:bold;">Fully recovered.</div>
+    <div style="font-size:22px; font-weight:bold;">Fully recovered.</div>
     {% else %}
     {% for m in data.recovery limit:2 %}
-    <div style="display:flex; justify-content:space-between; font-size:16px;">
+    <div style="display:flex; justify-content:space-between; font-size:22px;">
       <span>{{ m.muscle | capitalize }}</span>
-      <span style="font-weight:bold;{% if m.pct < 70 %} background:#000; color:#fff; padding:0 4px;{% endif %}">{{ m.pct }}%</span>
+      <span style="font-weight:bold;{% if m.pct < 70 %} background:#000; color:#fff; padding:0 5px;{% endif %}">{{ m.pct }}%</span>
     </div>
     {% endfor %}
     {% endif %}
