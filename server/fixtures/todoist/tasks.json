@@ -12,6 +12,10 @@
     {
       "id": "p3",
       "name": "Home"
+    },
+    {
+      "id": "p4",
+      "name": "Work"
     }
   ],
   "tasks": [
@@ -53,6 +57,22 @@
       "priority": 1,
       "due": {
         "date": "2026-09-09"
+      }
+    },
+    {
+      "content": "Review Q3 roadmap doc",
+      "project_id": "p4",
+      "priority": 3,
+      "due": {
+        "date": "2026-09-10T11:00:00"
+      }
+    },
+    {
+      "content": "Reply to Sarah re: API contract",
+      "project_id": "p4",
+      "priority": 4,
+      "due": {
+        "date": "2026-09-10"
       }
     }
   ]

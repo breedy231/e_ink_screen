@@ -10,5 +10,13 @@
     {% for e in data.today limit:3 %}
     <div style="font-size:24px; line-height:1.25;"><b>{{ e.time }}</b> {{ e.name }}</div>
     {% endfor %}
+
+    {% if data.today.size < 3 and data.tomorrow.size > 0 %}
+    <div style="font-size:19px; font-weight:bold; border-bottom:2px solid #000; margin-top:auto;">Tomorrow</div>
+    {% assign tmrw_limit = 3 | minus: data.today.size %}
+    {% for e in data.tomorrow limit:tmrw_limit %}
+    <div style="font-size:20px; line-height:1.25;"><b>{{ e.time }}</b> {{ e.name }}</div>
+    {% endfor %}
+    {% endif %}
   </div>
 </div>

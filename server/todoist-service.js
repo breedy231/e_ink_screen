@@ -16,6 +16,9 @@ const config = require('./config');
 
 const TODOIST_API_BASE = 'https://api.todoist.com/api/v1';
 const MAX_TASKS = 12;
+const WORK_PROJECT = 'Work';
+const WORK_START_HOUR = 9;   // Mon-Fri 9:00-17:00 Central shows only #Work
+const WORK_END_HOUR = 17;
 
 class TodoistService {
     constructor(options = {}) {
@@ -120,11 +123,26 @@ class TodoistService {
     }
 
     /**
-     * Raw Todoist shape -> ours. Overdue first, then by priority (Todoist
-     * p1 = API priority 4) and time. `todayIso` injectable for tests.
+     * Weekday 9-5 (config.TIMEZONE) is work context: the dashboard shows
+     * only #Work tasks. Any other time it shows everything else — work
+     * tasks are noise on the wall outside work hours, and vice versa.
      */
-    parseTasks(raw, todayIso) {
+    isWorkHours(now = new Date()) {
+        const parts = new Intl.DateTimeFormat('en-US', {
+            weekday: 'short', hour: 'numeric', hour12: false, timeZone: config.TIMEZONE
+        }).formatToParts(now);
+        const weekday = parts.find(p => p.type === 'weekday').value;
+        const hour = parseInt(parts.find(p => p.type === 'hour').value, 10) % 24;
+        return !['Sat', 'Sun'].includes(weekday) && hour >= WORK_START_HOUR && hour < WORK_END_HOUR;
+    }
+
+    /**
+     * Raw Todoist shape -> ours. Overdue first, then by priority (Todoist
+     * p1 = API priority 4) and time. `todayIso`/`now` injectable for tests.
+     */
+    parseTasks(raw, todayIso, now) {
         const today = todayIso || new Date().toISOString().slice(0, 10);
+        const workHours = this.isWorkHours(now);
         const projectNames = {};
         for (const p of (raw && raw.projects) || []) projectNames[p.id] = p.name;
 
@@ -139,6 +157,7 @@ class TodoistService {
                     isOverdue: dueDate !== null && dueDate < today
                 };
             })
+            .filter(t => workHours ? t.project === WORK_PROJECT : t.project !== WORK_PROJECT)
             .sort((a, b) =>
                 Number(b.isOverdue) - Number(a.isOverdue) ||
                 a.priority - b.priority ||
@@ -146,6 +165,7 @@ class TodoistService {
             );
 
         return {
+            context: workHours ? 'work' : 'personal',
             tasks: tasks.slice(0, MAX_TASKS),
             counts: {
                 overdue: tasks.filter(t => t.isOverdue).length,

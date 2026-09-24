@@ -831,13 +831,14 @@ class PokemonSpriteComponent extends ComponentBase {
 
 class TrmnlComponent extends ComponentBase {
     // Data this component needs injected (see enrichLayoutWithData)
-    static dataNeeds = ['trmnl'];
+    static dataNeeds = ['trmnl', 'deviceStats'];
 
     constructor(config = {}) {
         super('trmnl', {
             fontSize: 16,
             textAlign: 'center',
             trmnlData: config.trmnlData || null,
+            deviceStats: config.deviceStats || null,
             rotation: config.rotation || null, // 'cw' | 'ccw' | 'none'; falls back to server config.TRMNL_ROTATION in render()
             ...config
         });
@@ -891,6 +892,8 @@ class TrmnlComponent extends ComponentBase {
             }
             ctx.drawImage(image, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
             ctx.restore();
+
+            this.drawBatteryChip(ctx, bounds);
         } catch (error) {
             console.warn(`Failed to render TRMNL screen: ${error.message}`);
 
@@ -898,6 +901,42 @@ class TrmnlComponent extends ComponentBase {
             ctx.textAlign = 'center';
             ctx.fillText('TRMNL render error', contentBounds.x + contentBounds.width / 2, contentBounds.y + contentBounds.height / 2);
         }
+    }
+
+    /**
+     * Small battery chip in the corner. BYOS knows nothing about the
+     * Kindle's battery — only the Pi sees the ?battery= query param — so
+     * it's stamped onto the finished screen here. Drawn rotated 90deg cw
+     * to read in the same orientation as the TRMNL content (BYOS
+     * pre-rotates the bitmap for the amazon_kindle_7 device model); this
+     * corner is the landscape content's bottom-right.
+     */
+    drawBatteryChip(ctx, bounds) {
+        const stats = this.config.deviceStats;
+        const level = stats && stats.battery && stats.battery.level;
+        if (level == null || level === 'unknown') return;
+
+        const label = `${level}%${stats.charging ? ' chg' : ''}`;
+        const fontPx = 18;
+        const pad = 5;
+
+        ctx.save();
+        ctx.font = `bold ${fontPx}px sans-serif`;
+        const chipW = ctx.measureText(label).width + pad * 2;
+        const chipH = fontPx + pad * 2;
+
+        ctx.translate(bounds.x + 10 + chipH, bounds.y + bounds.height - 10 - chipW);
+        ctx.rotate(Math.PI / 2);
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, chipW, chipH);
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(0, 0, chipW, chipH);
+        ctx.fillStyle = '#000';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        ctx.fillText(label, pad, pad);
+        ctx.restore();
     }
 }
 

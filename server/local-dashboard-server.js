@@ -336,6 +336,7 @@ class LocalDashboardServer {
             // Construct deviceStats from query params
             const deviceStats = batteryLevel ? {
                 battery: { level: batteryLevel, voltage: 'unknown' },
+                charging: chargingStatus === '1',
             } : null;
 
             let imageBuffer;
