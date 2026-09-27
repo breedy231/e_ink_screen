@@ -76,6 +76,21 @@ module.exports = {
     CTA_TRAIN_API_KEY: process.env.CTA_TRAIN_API_KEY || null,
     TRANSIT_CACHE_TTL_MS: parseInt(process.env.TRANSIT_CACHE_TTL_MS, 10) || 5 * 60 * 1000,
 
+    // Todoist — unset token = todoist-service.js serves fixtures.
+    TODOIST_API_TOKEN: process.env.TODOIST_API_TOKEN || null,
+    TODOIST_CACHE_TTL_MS: parseInt(process.env.TODOIST_CACHE_TTL_MS, 10) || 10 * 60 * 1000,
+
+    // FitLocal (prod Fly.io API) — unset key = fitness-service.js serves fixtures.
+    FITLOCAL_API_URL: process.env.FITLOCAL_API_URL || 'https://fitlocal-app.fly.dev/api',
+    FITLOCAL_API_KEY: process.env.FITLOCAL_API_KEY || null,
+    FITLOCAL_CACHE_TTL_MS: parseInt(process.env.FITLOCAL_CACHE_TTL_MS, 10) || 30 * 60 * 1000,
+
+    // RSS digest — last_digest.json served by rss-digest's http.server on the Mac.
+    // mDNS hostname, not IP: the Mac's Wi-Fi MAC rotates (macOS private Wi-Fi
+    // address), so its DHCP lease drifts and reservations don't stick.
+    RSS_DIGEST_URL: process.env.RSS_DIGEST_URL || 'http://Brendans-MacBook-Pro-2.local:8765/last_digest.json',
+    RSS_CACHE_TTL_MS: parseInt(process.env.RSS_CACHE_TTL_MS, 10) || 30 * 60 * 1000,
+
     // TRMNL (self-hosted BYOS) — off unless TRMNL_MODE is set and
     // TRMNL_BASE_URL/DEVICE_MAC/API_KEY are all configured. See TRMNL_SETUP.md.
     TRMNL_MODE: process.env.TRMNL_MODE || 'off',   // 'off' | 'alternate' | 'only'
@@ -85,6 +100,9 @@ module.exports = {
     TRMNL_CACHE_TTL_MS: parseInt(process.env.TRMNL_CACHE_TTL_MS, 10) || 600000,
     TRMNL_ROTATION: process.env.TRMNL_ROTATION || 'cw',   // 'cw' | 'ccw'
     TRMNL_SLOT_MINUTES: parseInt(process.env.TRMNL_SLOT_MINUTES, 10) || 15,
+    // How old the last good BYOS screen may get, while fetches fail, before
+    // the Discord staleness alert fires. See trmnl-staleness-alert.js.
+    TRMNL_STALENESS_THRESHOLD_MS: parseInt(process.env.TRMNL_STALENESS_THRESHOLD_MS, 10) || 30 * 60 * 1000,
 
     // Python for e-ink optimization scripts
     PYTHON_BIN: resolvePythonBin()

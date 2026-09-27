@@ -1,0 +1,9 @@
+<div class="view view--{{ size }}">
+  <div style="display:flex; flex-direction:column; gap:3px; padding:6px; height:100%; text-align:left;">
+    <div style="font-size:14px; font-weight:bold; border-bottom:2px solid #000;">Front Page</div>
+    {% for th in data.themes limit:3 %}
+    <div style="font-size:12px; font-weight:bold;">{{ th.title | truncate: 34 }}</div>
+    {% endfor %}
+    <div style="margin-top:auto; font-size:10px;">+{{ data.alsoCount }} stories</div>
+  </div>
+</div>

@@ -155,7 +155,9 @@ class TransitService {
             const arrivals = prds
                 .filter(p => p.rt === stopCfg.route && p.stpid === stopCfg.stopId)
                 .map(p => ({
-                    minutes: p.prdctdn === 'DUE' ? 0 : parseInt(p.prdctdn, 10) || 0,
+                    // CTA sometimes reports negative countdowns for delayed
+                    // buses; clamp like the rail parser does.
+                    minutes: p.prdctdn === 'DUE' ? 0 : Math.max(0, parseInt(p.prdctdn, 10) || 0),
                     destination: p.des,
                     isDelayed: p.dly === true || p.dly === 'true'
                 }))

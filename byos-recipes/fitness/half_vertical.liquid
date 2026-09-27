@@ -1,0 +1,28 @@
+<div class="view view--{{ size }}">
+  <div style="display:flex; flex-direction:column; gap:5px; padding:6px; height:100%; text-align:left;">
+
+    <div style="display:flex; justify-content:space-between; align-items:baseline; border-bottom:2px solid #000; padding-bottom:2px;">
+      <span style="font-size:15px; font-weight:bold;">Fitness</span>
+      {% if data.weight %}<span style="font-size:12px; font-weight:bold;">{{ data.weight.lb }} lb</span>{% endif %}
+    </div>
+
+    {% assign calpct = data.nutrition.calories.current | times: 100.0 | divided_by: data.nutrition.calories.target | round | at_most: 100 %}
+    {% assign propct = data.nutrition.protein.current | times: 100.0 | divided_by: data.nutrition.protein.target | round | at_most: 100 %}
+    <div style="display:flex; justify-content:space-between; font-size:11px;"><b>Cal</b><span>{{ data.nutrition.calories.current }}/{{ data.nutrition.calories.target }}</span></div>
+    <div style="border:1px solid #000; height:10px;"><div style="background:#000; height:100%; width:{{ calpct }}%;"></div></div>
+    <div style="display:flex; justify-content:space-between; font-size:11px;"><b>Protein</b><span>{{ data.nutrition.protein.current }}g/{{ data.nutrition.protein.target }}g</span></div>
+    <div style="border:1px solid #000; height:10px;"><div style="background:#000; height:100%; width:{{ propct }}%;"></div></div>
+
+    <div style="font-size:13px; font-weight:bold; border-bottom:1px solid #000; margin-top:4px;">Recovery</div>
+    {% if data.fullyRecovered %}
+    <div style="font-size:12px; font-weight:bold;">All recovered.</div>
+    {% else %}
+    {% for m in data.recovery limit:6 %}
+    <div style="display:flex; justify-content:space-between; font-size:12px;">
+      <span>{{ m.muscle | capitalize }}</span>
+      <span style="font-weight:bold;{% if m.pct < 70 %} background:#000; color:#fff; padding:0 3px;{% endif %}">{{ m.pct }}%</span>
+    </div>
+    {% endfor %}
+    {% endif %}
+  </div>
+</div>

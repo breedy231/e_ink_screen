@@ -10,6 +10,9 @@ const PokemonService = require('./pokemon-service');
 const CalendarService = require('./calendar-service');
 const TrmnlService = require('./trmnl-service');
 const TransitService = require('./transit-service');
+const TodoistService = require('./todoist-service');
+const FitnessService = require('./fitness-service');
+const RssService = require('./rss-service');
 
 /**
  * Unified dashboard generation pipeline — the single implementation shared
@@ -74,7 +77,10 @@ function createServices(options = {}) {
             busApiKey: config.CTA_BUS_API_KEY,
             trainApiKey: config.CTA_TRAIN_API_KEY,
             cacheTimeout: config.TRANSIT_CACHE_TTL_MS
-        })
+        }),
+        todoist: new TodoistService({ useFixtures: mockData }),
+        fitness: new FitnessService({ useFixtures: mockData }),
+        rss: new RssService({ useFixtures: mockData })
     };
 }
 

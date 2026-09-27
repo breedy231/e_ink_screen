@@ -1,0 +1,35 @@
+<div class="view view--{{ size }}">
+  <div style="display:flex; flex-direction:column; gap:4px; padding:8px; height:100%; text-align:left;">
+
+    <div style="display:flex; gap:24px; flex:1;">
+      <div style="flex:1; display:flex; flex-direction:column; gap:3px;">
+        <div style="font-size:15px; font-weight:bold; border-bottom:2px solid #000; padding-bottom:1px;">Today</div>
+        {% if data.today.size == 0 %}
+        <div style="font-size:13px;">Nothing scheduled.</div>
+        {% endif %}
+        {% for e in data.today limit:3 %}
+        <div style="display:flex; gap:8px; align-items:baseline;">
+          <span style="font-size:12px; font-weight:bold; min-width:60px;">{{ e.time }}</span>
+          <span style="font-size:13px;">{{ e.name | truncate: 32 }}</span>
+        </div>
+        {% endfor %}
+        {% if data.today.size > 3 %}
+        <div style="font-size:10px;">+{{ data.today.size | minus: 3 }} more today</div>
+        {% endif %}
+      </div>
+
+      <div style="flex:1; display:flex; flex-direction:column; gap:3px;">
+        <div style="font-size:15px; font-weight:bold; border-bottom:2px solid #000; padding-bottom:1px;">Tomorrow</div>
+        {% if data.tomorrow.size == 0 %}
+        <div style="font-size:13px;">Nothing scheduled.</div>
+        {% endif %}
+        {% for e in data.tomorrow limit:3 %}
+        <div style="display:flex; gap:8px; align-items:baseline;">
+          <span style="font-size:12px; font-weight:bold; min-width:60px;">{{ e.time }}</span>
+          <span style="font-size:13px;">{{ e.name | truncate: 32 }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>

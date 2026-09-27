@@ -267,6 +267,24 @@ per-size markup variants — read **`BYOS_RECIPES.md`** before touching any
 recipe, especially the `Plugin.php:948` half-width fallback trap and the
 fact that the admin UI's CodeMirror editor cannot be driven programmatically.
 
+**Update 2026-09-10:** four real tile recipes now exist alongside CTA —
+**Todoist Today** (12), **Calendar** (13), **Fitness** (14), **RSS Digest**
+(15), each with full/half_vertical/quadrant variants in `byos-recipes/` and a
+matching Pi endpoint (`/api/todoist`, `/api/calendar`, `/api/fitness`,
+`/api/rss` — services follow the transit-service fallback-chain pattern).
+Fitness (FitLocal prod) and RSS (`last_digest.json` from the Mac's :8765
+server) are live; **Todoist and Calendar serve fixture/mock until
+`TODOIST_API_TOKEN` and `CALENDAR_URL` land in the Pi's `.env`**. The device
+now runs two scheduled playlists (`scripts/setup-byos-playlists.sh`, safe to
+re-run): **Morning** 06:00–11:00 (Zen+Weather|CTA mashup, Fitness, Todoist)
+and **Day & Evening** 11:00–22:00 (Calendar, Todoist, RSS, mashup);
+"Main Rotation" and "test" are deactivated. Alias rendering is enabled on
+recipes 10–15, so `npm run trmnl:preview -- --plugin <name>` works for all
+of them. Also from that session: the BYOS host Mac's LAN IP is DHCP-reserved
+at `192.168.50.204` on the router after a 3-week lease-expiry outage — if
+the Pi ever logs `EHOSTUNREACH` on BYOS fetches again, check that
+reservation first.
+
 Cautionary tale worth remembering: from 2026-08-10 to 2026-08-16 this screen
 *looked* shipped but the code had never been deployed to the Pi — BYOS was
 polling a hand-started `node` process on the Mac. **`deploy-to-pi.sh` is

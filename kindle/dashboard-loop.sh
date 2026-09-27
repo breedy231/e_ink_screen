@@ -235,6 +235,47 @@ is_active_hours() {
     return 1
 }
 
+# Read the server's poke flag (seconds epoch of the last manual /next).
+# Prints "0" when the server is unreachable or answers garbage.
+read_poke() {
+    local val
+    val=$(wget -q -O - "http://${SERVER_HOST}:${SERVER_PORT}/api/poke" 2>/dev/null)
+    case "$val" in
+        ''|*[!0-9]*) echo "0" ;;
+        *) echo "$val" ;;
+    esac
+}
+
+# Sleep for $1 seconds in POKE_INTERVAL chunks, checking the poke flag
+# between chunks. Returns 0 (cut sleep short) when a new poke arrived,
+# 1 when the full duration elapsed. POKE_INTERVAL=0 disables checking.
+poke_sleep() {
+    local remaining chunk poke
+    remaining=$1
+
+    while [ "$remaining" -gt 0 ]; do
+        chunk=$POKE_INTERVAL
+        if [ "$POKE_INTERVAL" = "0" ] || [ "$remaining" -lt "$chunk" ]; then
+            chunk=$remaining
+        fi
+        sleep "$chunk"
+        remaining=$((remaining - chunk))
+
+        if [ "$POKE_INTERVAL" = "0" ]; then
+            continue
+        fi
+
+        poke=$(read_poke)
+        if [ "$poke" -gt "${LAST_POKE:-0}" ]; then
+            LAST_POKE=$poke
+            log_msg "Poke received - refreshing now"
+            return 0
+        fi
+    done
+
+    return 1
+}
+
 ##############################################################################
 # Main
 ##############################################################################
@@ -256,14 +297,22 @@ main() {
     # Interval: --interval flag wins, then UPDATE_INTERVAL from config, then 900s
     UPDATE_INTERVAL="${CLI_INTERVAL:-${UPDATE_INTERVAL:-900}}"
 
+    # How often to check the server's poke flag mid-sleep (0 = never)
+    POKE_INTERVAL="${POKE_INTERVAL:-20}"
+
     log_msg "========================================="
     log_msg "Dashboard loop starting (PID $$)"
     log_msg "  Interval: ${UPDATE_INTERVAL}s"
     log_msg "  Active hours: ${ACTIVE_HOURS_START}:00-${ACTIVE_HOURS_END}:00 Central"
     log_msg "  UTC offset: ${UTC_OFFSET}"
+    log_msg "  Poke check: every ${POKE_INTERVAL}s"
     log_msg "========================================="
 
     write_pid
+
+    # Baseline the poke flag so a poke that predates this boot doesn't
+    # trigger a spurious refresh on the first cycle
+    LAST_POKE=$(read_poke)
 
     # Sync clock before anything else (Kindle clock drifts without framework)
     if type ntpdate >/dev/null 2>&1; then
@@ -315,7 +364,9 @@ main() {
         next_hour=$(( (next_epoch / 3600) % 24 ))
         log_msg "Sleeping ${sleep_time}s (next fetch ~${next_hour}:$(printf '%02d' $next_min) UTC)"
 
-        sleep "$sleep_time"
+        # Sleep in poke-checkable chunks; a manual /next on the server cuts
+        # the wait short and refreshes within ~POKE_INTERVAL seconds
+        poke_sleep "$sleep_time"
         rotate_log
         if is_active_hours; then
             do_update

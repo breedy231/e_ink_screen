@@ -1,0 +1,8 @@
+name: RSS Digest
+no_screen_padding: 'no'
+dark_mode: 'no'
+strategy: polling
+polling_verb: get
+polling_url: http://192.168.50.163:3000/api/rss
+refresh_interval: 60
+id: 01a08c81-b458-7a3b-b04a-7b851e47ab3b

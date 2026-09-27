@@ -1,0 +1,22 @@
+<div class="view view--{{ size }}">
+  <div style="display:flex; flex-direction:column; gap:8px; padding:10px; height:100%; text-align:left;">
+    <div style="display:flex; justify-content:space-between; align-items:baseline; border-bottom:3px solid #000;">
+      <span style="font-size:26px; font-weight:bold;">Today</span>
+      {% if data.today.size > 3 %}<span style="font-size:16px;">+{{ data.today.size | minus: 3 }}</span>{% endif %}
+    </div>
+    {% if data.today.size == 0 %}
+    <div style="font-size:24px;">Nothing scheduled.</div>
+    {% endif %}
+    {% for e in data.today limit:3 %}
+    <div style="font-size:24px; line-height:1.25;"><b>{{ e.time }}</b> {{ e.name }}</div>
+    {% endfor %}
+
+    {% if data.today.size < 3 and data.tomorrow.size > 0 %}
+    <div style="font-size:19px; font-weight:bold; border-bottom:2px solid #000; margin-top:auto;">Tomorrow</div>
+    {% assign tmrw_limit = 3 | minus: data.today.size %}
+    {% for e in data.tomorrow limit:tmrw_limit %}
+    <div style="font-size:20px; line-height:1.25;"><b>{{ e.time }}</b> {{ e.name }}</div>
+    {% endfor %}
+    {% endif %}
+  </div>
+</div>

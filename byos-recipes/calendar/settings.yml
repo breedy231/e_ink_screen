@@ -1,0 +1,8 @@
+name: Calendar
+no_screen_padding: 'no'
+dark_mode: 'no'
+strategy: polling
+polling_verb: get
+polling_url: http://192.168.50.163:3000/api/calendar
+refresh_interval: 15
+id: 01a08c81-b3fd-7474-9648-3d80e3bcc482
