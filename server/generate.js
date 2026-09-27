@@ -13,6 +13,7 @@ const TransitService = require('./transit-service');
 const TodoistService = require('./todoist-service');
 const FitnessService = require('./fitness-service');
 const RssService = require('./rss-service');
+const HoroscopeService = require('./horoscope-service');
 
 /**
  * Unified dashboard generation pipeline — the single implementation shared
@@ -80,7 +81,8 @@ function createServices(options = {}) {
         }),
         todoist: new TodoistService({ useFixtures: mockData }),
         fitness: new FitnessService({ useFixtures: mockData }),
-        rss: new RssService({ useFixtures: mockData })
+        rss: new RssService({ useFixtures: mockData }),
+        horoscope: new HoroscopeService({ useFixtures: mockData })
     };
 }
 

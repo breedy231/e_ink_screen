@@ -483,6 +483,10 @@ class LocalDashboardServer {
                     method: 'GET',
                     description: 'RSS digest headlines from the nightly rss-digest run (JSON)'
                 },
+                '/api/horoscope': {
+                    method: 'GET',
+                    description: 'Sun-Times daily horoscope: Moon Alert + configured signs (JSON, spike)'
+                },
                 '/health': {
                     method: 'GET',
                     description: 'Server health check and status'
@@ -577,6 +581,10 @@ class LocalDashboardServer {
 
                 case '/api/rss':
                     await this.handleApiJson(res, 'RSS', () => this.services.rss.getRssData());
+                    break;
+
+                case '/api/horoscope':
+                    await this.handleApiJson(res, 'Horoscope', () => this.services.horoscope.getHoroscopeData());
                     break;
 
                 case '/next':
