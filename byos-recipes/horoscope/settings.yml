@@ -1,0 +1,10 @@
+name: Horoscope
+no_screen_padding: 'no'
+dark_mode: 'no'
+strategy: polling
+polling_verb: get
+polling_url: http://192.168.50.163:3000/api/horoscope
+refresh_interval: 60
+# DRAFT — not imported. Create the recipe first (POST /api/plugin_settings),
+# then add its trmnlp_id here as `id:` before the archive import.
+# See docs/scoping/horoscope-tile.md "Local-deploy checklist".

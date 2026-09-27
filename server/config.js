@@ -91,6 +91,16 @@ module.exports = {
     RSS_DIGEST_URL: process.env.RSS_DIGEST_URL || 'http://Brendans-MacBook-Pro-2.local:8765/last_digest.json',
     RSS_CACHE_TTL_MS: parseInt(process.env.RSS_CACHE_TTL_MS, 10) || 30 * 60 * 1000,
 
+    // Horoscope — Sun-Times site RSS (Georgia Nicols column). Spike; see
+    // docs/scoping/horoscope-tile.md. RETRY_MS throttles re-fetching the feed
+    // while today's column hasn't been published yet.
+    HOROSCOPE_FEED_URL: process.env.HOROSCOPE_FEED_URL || 'https://chicago.suntimes.com/rss/index.xml',
+    HOROSCOPE_SIGNS: (process.env.HOROSCOPE_SIGNS || 'taurus,libra')
+        .split(',')
+        .map((s) => s.trim().toLowerCase())
+        .filter(Boolean),
+    HOROSCOPE_RETRY_MS: parseInt(process.env.HOROSCOPE_RETRY_MS, 10) || 30 * 60 * 1000,
+
     // TRMNL (self-hosted BYOS) — off unless TRMNL_MODE is set and
     // TRMNL_BASE_URL/DEVICE_MAC/API_KEY are all configured. See TRMNL_SETUP.md.
     TRMNL_MODE: process.env.TRMNL_MODE || 'off',   // 'off' | 'alternate' | 'only'

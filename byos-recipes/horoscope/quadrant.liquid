@@ -1,0 +1,24 @@
+<div class="view view--{{ size }}">
+  <div style="display:flex; flex-direction:column; gap:6px; padding:10px; height:100%; text-align:left;">
+
+    <div style="display:flex; justify-content:space-between; align-items:baseline; border-bottom:3px solid #000;">
+      <span style="font-size:26px; font-weight:bold;">Stars{% if data.source == 'fixture' %} <span style="font-size:16px; border:2px solid #000; padding:0 4px;">SAMPLE</span>{% endif %}</span>
+      <span style="font-size:20px; font-weight:bold;{% unless data.moonAlert.clear %} background:#000; color:#fff; padding:0 6px;{% endunless %}">{{ data.moonAlert.headline }}</span>
+    </div>
+
+    {% comment %} Clamp, not truncate: BYOS renders in Chromium, so line-clamp
+    fills exactly the rows available. One row goes to the stale footer. {% endcomment %}
+    {% if data.stale %}{% assign lines = 2 %}{% else %}{% assign lines = 3 %}{% endif %}
+    {% for s in data.signs limit:2 %}
+    <div style="display:flex; justify-content:space-between; align-items:baseline; margin-top:2px;">
+      <span style="font-size:26px; font-weight:bold;">{{ s.name }}</span>
+      {% if s.rating %}<span style="font-size:20px;">{{ s.rating }}</span>{% endif %}
+    </div>
+    <div style="font-size:22px; line-height:1.2; display:-webkit-box; -webkit-line-clamp:{{ lines }}; -webkit-box-orient:vertical; overflow:hidden;">{{ s.text }}</div>
+    {% endfor %}
+
+    {% if data.stale %}
+    <div style="margin-top:auto; font-size:16px;">from {{ data.dateLabel }}</div>
+    {% endif %}
+  </div>
+</div>
