@@ -119,6 +119,7 @@ enable_wifi() {
     while [ $waited -lt $WIFI_WAIT_MAX ]; do
         if ifconfig wlan0 2>/dev/null | grep -q "inet addr"; then
             log_msg "WiFi connected (${waited}s)"
+            apply_wifi_power_save
             return 0
         fi
         sleep 2
@@ -127,6 +128,29 @@ enable_wifi() {
 
     log_msg "WARNING: WiFi not connected after ${WIFI_WAIT_MAX}s"
     return 1
+}
+
+# 802.11 power-save: "on" lets the radio doze between beacons while staying
+# associated; "off" keeps it at full power. start.sh forces it off (an old
+# fix for a "WiFi drops" theory that turned out to be battery death); this
+# runs after start.sh and after every reconnect, so the config wins.
+# iwconfig is /usr/sbin/iwconfig, which is NOT on root's PATH over SSH
+# (but is under upstart at boot) — so call it by absolute path.
+apply_wifi_power_save() {
+    if [ -f /usr/sbin/iwconfig ]; then
+        /usr/sbin/iwconfig wlan0 power "${WIFI_POWER_SAVE:-on}" 2>/dev/null || true
+    fi
+}
+
+# Turn the radio off. Overnight there's nothing to fetch and no reason to
+# poll the poke flag, and the radio idling on the network is the biggest
+# steady drain (measured ~1%/hr overnight, same as daytime). do_update turns
+# it back on via enable_wifi.
+disable_wifi() {
+    if [ -x "/usr/bin/lipc-set-prop" ]; then
+        /usr/bin/lipc-set-prop com.lab126.cmd wirelessEnable 0 2>/dev/null \
+            && log_msg "WiFi off until active hours" || true
+    fi
 }
 
 # Fetch and display dashboard
@@ -143,8 +167,17 @@ do_update() {
 
     # Invoke via sh: /mnt/us is vfat, so exec bits don't survive there
     if [ -f "$FETCH_SCRIPT" ]; then
-        sh "$FETCH_SCRIPT" --config "$CONFIG_FILE" >> "$LOOP_LOG" 2>&1
+        # The loop blanks the panel at startup, so the first draw must not be
+        # skipped as "unchanged" — force it.
+        local force=""
+        if [ "${DRAWN_SINCE_START:-false}" != "true" ]; then
+            force="--force"
+        fi
+        sh "$FETCH_SCRIPT" --config "$CONFIG_FILE" $force >> "$LOOP_LOG" 2>&1
         local rc=$?
+        if [ $rc -eq 0 ]; then
+            DRAWN_SINCE_START=true
+        fi
         if [ $rc -eq 0 ]; then
             log_msg "Update successful"
         else
@@ -365,8 +398,14 @@ main() {
         log_msg "Sleeping ${sleep_time}s (next fetch ~${next_hour}:$(printf '%02d' $next_min) UTC)"
 
         # Sleep in poke-checkable chunks; a manual /next on the server cuts
-        # the wait short and refreshes within ~POKE_INTERVAL seconds
-        poke_sleep "$sleep_time"
+        # the wait short and refreshes within ~POKE_INTERVAL seconds.
+        # Outside active hours: radio off, plain sleep, no poke polling.
+        if is_active_hours; then
+            poke_sleep "$sleep_time"
+        else
+            disable_wifi
+            sleep "$sleep_time"
+        fi
         rotate_log
         if is_active_hours; then
             do_update

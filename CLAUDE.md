@@ -128,7 +128,14 @@ Device quirks that shape the scripts:
 - The device does not answer ICMP; `ping` failing says nothing. Use
   `nc -z <ip> 22`.
 - `keepAliveWirelessRadio` does not exist on Kindle Touch powerd
-  (`lipcErrNoSuchProperty`). Only `iwconfig <if> power off` holds the radio up.
+  (`lipcErrNoSuchProperty`). `iwconfig` is `/usr/sbin/iwconfig` — on the
+  PATH under upstart at boot but NOT over SSH, so `start.sh`'s `iwconfig
+  power off` silently no-ops when started by hand. The loop now sets
+  802.11 power-save from `WIFI_POWER_SAVE` by absolute path after every
+  connect, so the config wins either way.
+- `stop.sh` drops an SSH session to the device mid-run; run `start.sh` in a
+  separate SSH call afterwards. If this Mac can't reach the Kindle (its
+  dual-NIC routing quirk), jump through the Pi: `ssh -J pi root@<kindle>`.
 
 Verify before deploy: `sh -n kindle/*.sh` (or just run `./scripts/validate.sh`).
 
@@ -320,11 +327,12 @@ landscape canvas — that's still open, see below.
 
 ### Rotation cadence (investigated 2026-08-15, changed 2026-08-16)
 
-**Current setting: ~5 min.** `TRMNL_CACHE_TTL_MS=240000` (Pi `.env`) and
-`UPDATE_INTERVAL=300` (Kindle config). The TTL is deliberately 4 min, not 5:
-the effective cadence is `max(UPDATE_INTERVAL, TRMNL_CACHE_TTL_MS)`, so equal
-values risk a poll finding the cache 299s old, serving a stale image and
-skipping the playlist advance — which would silently give 10-min cadence.
+**Current setting: 15 min (2026-10-11).** `UPDATE_INTERVAL=900` (Kindle
+config) with `TRMNL_CACHE_TTL_MS=480000` (Pi `.env`, 8 min). History: 15 →
+5 (2026-08-16) → 10 (2026-09-24) → 15 — 5 and 10 were both too distracting.
+The effective cadence is `max(UPDATE_INTERVAL, TRMNL_CACHE_TTL_MS)`; equal
+values risk a poll finding the cache barely-fresh, serving a stale image and
+skipping the playlist advance.
 Keep the TTL comfortably below the poll interval. Also note
 `TRMNL_SLOT_MINUTES` does nothing under `TRMNL_MODE=only`
 (`local-dashboard-server.js:192` reads it only in `alternate` mode).

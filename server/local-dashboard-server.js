@@ -187,7 +187,11 @@ class LocalDashboardServer {
         }
         params.sort();
         const search = params.toString();
-        return `${parsedUrl.pathname}${search ? '?' + search : ''}`;
+        // Never serve an image across a quarter-hour boundary: the TRMNL
+        // clock strip names the quarter, and a poll at :00:30 must not get a
+        // render cached at :59:50 (e.g. after a manual /next or a restart).
+        const quarter = Math.floor(Date.now() / (15 * 60 * 1000));
+        return `${parsedUrl.pathname}${search ? '?' + search : ''}#q${quarter}`;
     }
 
     /**
