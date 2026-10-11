@@ -134,9 +134,11 @@ enable_wifi() {
 # associated; "off" keeps it at full power. start.sh forces it off (an old
 # fix for a "WiFi drops" theory that turned out to be battery death); this
 # runs after start.sh and after every reconnect, so the config wins.
+# iwconfig is /usr/sbin/iwconfig, which is NOT on root's PATH over SSH
+# (but is under upstart at boot) — so call it by absolute path.
 apply_wifi_power_save() {
-    if type iwconfig >/dev/null 2>&1; then
-        iwconfig wlan0 power "${WIFI_POWER_SAVE:-on}" 2>/dev/null || true
+    if [ -f /usr/sbin/iwconfig ]; then
+        /usr/sbin/iwconfig wlan0 power "${WIFI_POWER_SAVE:-on}" 2>/dev/null || true
     fi
 }
 
