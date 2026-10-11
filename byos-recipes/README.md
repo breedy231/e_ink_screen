@@ -11,6 +11,7 @@ uses. These are the source of truth — BYOS's sqlite DB is downstream of them.
 | `calendar/`  | Calendar (13)        | `full`, `half_horizontal`, `half_vertical`, `quadrant` |
 | `fitness/`   | Fitness (14)         | `full`, `half_vertical`, `quadrant` |
 | `rss/`       | RSS Digest (15)      | `full`, `half_vertical`, `quadrant` |
+| `clock/`     | Clock (static, imported; not in a playlist) | `full`, `quadrant` |
 | `horoscope/` | Horoscope (**draft, not imported**) | `full`, `quadrant`. See `docs/scoping/horoscope-tile.md`; `settings.yml` has no `id:` until the recipe is created. |
 
 The `id:` in each `settings.yml` is the recipe's `trmnlp_id` and must match

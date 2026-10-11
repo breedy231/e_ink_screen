@@ -128,7 +128,18 @@ Device quirks that shape the scripts:
 - The device does not answer ICMP; `ping` failing says nothing. Use
   `nc -z <ip> 22`.
 - `keepAliveWirelessRadio` does not exist on Kindle Touch powerd
-  (`lipcErrNoSuchProperty`). Only `iwconfig <if> power off` holds the radio up.
+  (`lipcErrNoSuchProperty`). `iwconfig` is `/usr/sbin/iwconfig` — on the
+  PATH under upstart at boot but NOT over SSH, so `start.sh`'s `iwconfig
+  power off` silently no-ops when started by hand. The loop now sets
+  802.11 power-save from `WIFI_POWER_SAVE` by absolute path after every
+  connect, so the config wins either way.
+- `stop.sh` restarts the framework, which bounces WiFi — its SSH session
+  can drop and the device is unreachable for ~30-60s after. Never chain
+  `stop.sh; start.sh` in one SSH call (start never runs and the Kindle is
+  left in normal mode). `deploy-kindle.sh --restart` handles this.
+- This Mac often can't reach the Kindle directly (dual-NIC routing quirk)
+  while the Pi can. `deploy-kindle.sh` auto-jumps through the Pi; by hand,
+  add `-J pi` to ssh/scp.
 
 Verify before deploy: `sh -n kindle/*.sh` (or just run `./scripts/validate.sh`).
 
@@ -164,8 +175,9 @@ cd server && npm start                # then: curl localhost:3000/dashboard
 
 # Deploy
 ./deploy-to-pi.sh                     # server → Pi (rsync + systemd restart)
-KINDLE_PASSWORD=... ./deploy-kindle.sh --restart   # scripts → Kindle
-KINDLE_PASSWORD=... ./deploy-kindle.sh --install-boot-job  # upstart job (writes rootfs)
+./deploy-kindle.sh --restart           # scripts → Kindle (auto-jumps via Pi if needed)
+./deploy-kindle.sh --install-boot-job  # upstart job (writes rootfs)
+# Password: KINDLE_PASSWORD env, else ~/.config/kindle.env (KINDLE_PASSWORD='...')
 ```
 
 Always run `./scripts/validate.sh` before deploying, and validate visual
@@ -199,6 +211,9 @@ white), no gradients. The server's `optimize-for-eink.py` pass
   future dev machine hits `Permission denied (publickey,password)`, that's
   per-machine, not a Pi-side problem — unblock it before server-side debugging.
   `/health` on port 3000 is plain HTTP and needs no SSH.
+- Battery drain history (every Kindle fetch logs `battery=N`), hourly sample:
+  `ssh pi 'journalctl -u kindle-dashboard --since "-3 days" --no-pager | grep -oE "^[A-Z][a-z]{2} [0-9]+ [0-9:]+|battery=[0-9]+" | paste - - | grep battery | awk "NR%6==1"'`
+  Baseline before 2026-10-11 changes: ~1.1%/hr, same day and night.
 - Ops runbook: `PI_PRODUCTION_GUIDE.md`. Layout system: `DASHBOARD_LAYOUTS.md`.
 
 ## Second screen — kitchen "Live Paper" (planned, 2026-08-16)
@@ -249,7 +264,8 @@ the Pi (flipped from `alternate` — TRMNL is now the sole source for
 `/dashboard`; native portrait layouts like `wild-swiss` are unused, see
 "Landscape mount" below). BYOS (`byos_laravel`) runs as a Docker container
 on Brendan's always-on Mac (`~/services/byos_laravel/docker/prod`),
-reachable from the Pi at `http://192.168.50.204:4567`. Playlist is mostly
+reachable from the Pi over Tailscale at `http://100.97.122.88:4567` (see
+"Mac addressing" below). Playlist is mostly
 still the seeded demo recipes (weather, quotes, history, etc.) plus one
 real recipe: **"CTA Transit"** (`server/transit-service.js` +
 `/api/transit`) — **fully live as of 2026-08-16**: both CTA keys are in the
@@ -280,10 +296,19 @@ re-run): **Morning** 06:00–11:00 (Zen+Weather|CTA mashup, Fitness, Todoist)
 and **Day & Evening** 11:00–22:00 (Calendar, Todoist, RSS, mashup);
 "Main Rotation" and "test" are deactivated. Alias rendering is enabled on
 recipes 10–15, so `npm run trmnl:preview -- --plugin <name>` works for all
-of them. Also from that session: the BYOS host Mac's LAN IP is DHCP-reserved
-at `192.168.50.204` on the router after a 3-week lease-expiry outage — if
-the Pi ever logs `EHOSTUNREACH` on BYOS fetches again, check that
-reservation first.
+of them.
+
+**Mac addressing (2026-10-11):** everything the Pi fetches from the Mac —
+`TRMNL_BASE_URL`, `RSS_DIGEST_URL`, and BYOS's own `APP_URL` (which builds
+the absolute `image_url`) — uses the Mac's **Tailscale IP `100.97.122.88`**.
+Both machines are on the tailnet (the Pi is node `pihole`, `100.85.77.43`).
+The earlier LAN-IP and `.local` approaches both failed in production: the
+Mac's private Wi-Fi MAC makes its DHCP lease drift (`EHOSTUNREACH`), and the
+Pi's long-running Node process loses mDNS resolution after a drift
+(`ENOTFOUND` until restart — 309 failures Sep 15–23). MagicDNS names do not
+resolve on the Pi, which is its own DNS server, so use the raw `100.x`
+address. If the Mac's Tailscale is logged out, these fetches fail; check
+`tailscale status` on the Mac first.
 
 Cautionary tale worth remembering: from 2026-08-10 to 2026-08-16 this screen
 *looked* shipped but the code had never been deployed to the Pi — BYOS was
@@ -320,11 +345,12 @@ landscape canvas — that's still open, see below.
 
 ### Rotation cadence (investigated 2026-08-15, changed 2026-08-16)
 
-**Current setting: ~5 min.** `TRMNL_CACHE_TTL_MS=240000` (Pi `.env`) and
-`UPDATE_INTERVAL=300` (Kindle config). The TTL is deliberately 4 min, not 5:
-the effective cadence is `max(UPDATE_INTERVAL, TRMNL_CACHE_TTL_MS)`, so equal
-values risk a poll finding the cache 299s old, serving a stale image and
-skipping the playlist advance — which would silently give 10-min cadence.
+**Current setting: 15 min (2026-10-11).** `UPDATE_INTERVAL=900` (Kindle
+config) with `TRMNL_CACHE_TTL_MS=480000` (Pi `.env`, 8 min). History: 15 →
+5 (2026-08-16) → 10 (2026-09-24) → 15 — 5 and 10 were both too distracting.
+The effective cadence is `max(UPDATE_INTERVAL, TRMNL_CACHE_TTL_MS)`; equal
+values risk a poll finding the cache barely-fresh, serving a stale image and
+skipping the playlist advance.
 Keep the TTL comfortably below the poll interval. Also note
 `TRMNL_SLOT_MINUTES` does nothing under `TRMNL_MODE=only`
 (`local-dashboard-server.js:192` reads it only in `alternate` mode).

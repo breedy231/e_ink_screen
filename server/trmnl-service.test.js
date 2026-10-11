@@ -36,10 +36,11 @@ async function recordTrmnlPlacement(rotation, imagePath) {
         trmnlData: { imagePath }
     });
 
-    const placement = { rotated: null };
+    const placement = { rotated: null, texts: [] };
     const ctx = {
         save() {}, restore() {}, beginPath() {}, closePath() {}, fill() {}, stroke() {},
-        moveTo() {}, lineTo() {}, arcTo() {}, fillRect() {}, strokeRect() {}, fillText() {},
+        moveTo() {}, lineTo() {}, arcTo() {}, fillRect() {}, strokeRect() {},
+        fillText(text) { placement.texts.push(text); },
         translate() {},
         rotate(angle) { placement.rotated = angle; },
         drawImage(_image, _x, _y, width, height) {
@@ -151,6 +152,28 @@ async function runTests() {
         Math.round(placements.none.drawWidth) === 600 && Math.round(placements.none.drawHeight) === 360,
         `none letterboxes upright to 600x360 (got ${Math.round(placements.none.drawWidth)}x${Math.round(placements.none.drawHeight)})`
     );
+    console.log();
+
+    // Test 7: clock strip on BYOS's pre-rotated portrait output. The screen
+    // shrinks into the columns left of the strip instead of being covered.
+    console.log('Test 7: Clock Strip');
+    const { createCanvas } = require('canvas');
+    const portraitPath = path.join(freshCacheDir('mock'), 'portrait.png');
+    fs.mkdirSync(path.dirname(portraitPath), { recursive: true });
+    fs.writeFileSync(portraitPath, createCanvas(600, 800).toBuffer('image/png'));
+    const strip = require('./config').TRMNL_CLOCK_STRIP_PX;
+    const withStrip = await recordTrmnlPlacement('none', portraitPath);
+    assert(strip > 0, `strip enabled by default (${strip}px)`);
+    assert(
+        Math.round(withStrip.drawWidth) === 600 - strip,
+        `portrait screen shrinks to ${600 - strip}px wide beside the strip (got ${Math.round(withStrip.drawWidth)})`
+    );
+    assert(withStrip.rotated === Math.PI / 2, 'strip text is rotated cw to match the content');
+    assert(
+        withStrip.texts.some(t => /o\u2019clock|quarter|half|noon|midnight/.test(t)),
+        `strip draws the word clock (got ${JSON.stringify(withStrip.texts)})`
+    );
+    assert(placements.none.texts.length === 0, 'no strip on landscape (non-pre-rotated) screens');
     console.log();
 
     // Cleanup test cache dirs

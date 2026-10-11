@@ -86,9 +86,12 @@ module.exports = {
     FITLOCAL_CACHE_TTL_MS: parseInt(process.env.FITLOCAL_CACHE_TTL_MS, 10) || 30 * 60 * 1000,
 
     // RSS digest — last_digest.json served by rss-digest's http.server on the Mac.
-    // mDNS hostname, not IP: the Mac's Wi-Fi MAC rotates (macOS private Wi-Fi
-    // address), so its DHCP lease drifts and reservations don't stick.
-    RSS_DIGEST_URL: process.env.RSS_DIGEST_URL || 'http://Brendans-MacBook-Pro-2.local:8765/last_digest.json',
+    // Mac's Tailscale IP, not LAN IP or mDNS name: the Mac's Wi-Fi MAC rotates
+    // (macOS private Wi-Fi address) so its DHCP lease drifts, and the Pi's
+    // long-running Node process loses `.local` resolution after a drift
+    // (ENOTFOUND until restart). MagicDNS names don't resolve on the Pi (it is
+    // its own DNS server), so use the raw 100.x address.
+    RSS_DIGEST_URL: process.env.RSS_DIGEST_URL || 'http://100.97.122.88:8765/last_digest.json',
     RSS_CACHE_TTL_MS: parseInt(process.env.RSS_CACHE_TTL_MS, 10) || 30 * 60 * 1000,
 
     // Horoscope — Sun-Times site RSS (Georgia Nicols column). Spike; see
@@ -109,6 +112,9 @@ module.exports = {
     TRMNL_API_KEY: process.env.TRMNL_API_KEY || null,
     TRMNL_CACHE_TTL_MS: parseInt(process.env.TRMNL_CACHE_TTL_MS, 10) || 600000,
     TRMNL_ROTATION: process.env.TRMNL_ROTATION || 'cw',   // 'cw' | 'ccw'
+    // Word-clock strip along the top of TRMNL screens, in px; 0 disables.
+    // Only drawn for BYOS pre-rotated portrait output (TRMNL_ROTATION=none).
+    TRMNL_CLOCK_STRIP_PX: parseInt(process.env.TRMNL_CLOCK_STRIP_PX || '52', 10),
     TRMNL_SLOT_MINUTES: parseInt(process.env.TRMNL_SLOT_MINUTES, 10) || 15,
     // How old the last good BYOS screen may get, while fetches fail, before
     // the Discord staleness alert fires. See trmnl-staleness-alert.js.

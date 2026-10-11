@@ -50,8 +50,10 @@ Use a free port — 3000 is already taken by the Kindle dashboard server if
 you're running BYOS on the same Pi. 4567 is the compose file's default.
 
 **`APP_URL` must be an address every poller (the Pi, and you) can actually
-reach** — see the production gotcha below. If this machine is on a VPN/mesh
-(Tailscale) that the Pi isn't, use the plain LAN IP, not the mesh address.
+reach** — see the production gotcha below. In production both the Mac and
+the Pi are on the tailnet, so `APP_URL` is the Mac's Tailscale IP
+(`100.97.122.88`) — stable, unlike the Mac's drifting LAN lease. If the Pi
+is ever *not* on the tailnet, a Tailscale address will not work for it.
 
 ## 3. Register a virtual device
 
@@ -292,6 +294,10 @@ TRMNL is designed to never make the dashboard worse than it is today:
   below, this one bit us in production.
 
 ## Production gotcha: `APP_URL` must be reachable from the Pi, not just from you
+
+(Production now uses Tailscale on both ends — see CLAUDE.md "Mac
+addressing". This section describes the failure if the Pi can't reach the
+`APP_URL` host.)
 
 If your BYOS instance (byos_laravel) is behind a VPN/mesh network like
 Tailscale that the Pi *doesn't* have, set `APP_URL` in its `.env` to an

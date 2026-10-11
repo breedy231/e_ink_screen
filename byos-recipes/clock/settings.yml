@@ -1,0 +1,6 @@
+name: Clock
+no_screen_padding: 'no'
+dark_mode: 'no'
+strategy: static
+refresh_interval: 15
+id: 019a2d3e-6c1f-7a4b-9c2e-5d8f0b1a7c33
