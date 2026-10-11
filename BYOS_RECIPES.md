@@ -181,8 +181,8 @@ markup, without touching the device, are in `TRMNL_SETUP.md`
 (`npm run trmnl:preview`, `--next` to force a playlist advance).
 
 Rendering a recipe from the LaraPaper UI writes a PNG under
-`/storage/…/images/generated`. Fetch it over the **LAN address**
-(`http://192.168.50.204:4567/…`) — `localhost` returns HTML/404 for the same
+`/storage/…/images/generated`. Fetch it over the **`APP_URL` address**
+(`http://100.97.122.88:4567/…`, the Mac's Tailscale IP) — `localhost` returns HTML/404 for the same
 path. Playwright screenshots are not a workaround here: the files never
 appear on disk, `fetch` inside the page fails CORS, and `canvas.toDataURL`
 throws `SecurityError: Tainted canvases`.

@@ -86,9 +86,12 @@ module.exports = {
     FITLOCAL_CACHE_TTL_MS: parseInt(process.env.FITLOCAL_CACHE_TTL_MS, 10) || 30 * 60 * 1000,
 
     // RSS digest — last_digest.json served by rss-digest's http.server on the Mac.
-    // mDNS hostname, not IP: the Mac's Wi-Fi MAC rotates (macOS private Wi-Fi
-    // address), so its DHCP lease drifts and reservations don't stick.
-    RSS_DIGEST_URL: process.env.RSS_DIGEST_URL || 'http://Brendans-MacBook-Pro-2.local:8765/last_digest.json',
+    // Mac's Tailscale IP, not LAN IP or mDNS name: the Mac's Wi-Fi MAC rotates
+    // (macOS private Wi-Fi address) so its DHCP lease drifts, and the Pi's
+    // long-running Node process loses `.local` resolution after a drift
+    // (ENOTFOUND until restart). MagicDNS names don't resolve on the Pi (it is
+    // its own DNS server), so use the raw 100.x address.
+    RSS_DIGEST_URL: process.env.RSS_DIGEST_URL || 'http://100.97.122.88:8765/last_digest.json',
     RSS_CACHE_TTL_MS: parseInt(process.env.RSS_CACHE_TTL_MS, 10) || 30 * 60 * 1000,
 
     // TRMNL (self-hosted BYOS) — off unless TRMNL_MODE is set and

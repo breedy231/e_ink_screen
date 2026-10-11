@@ -249,7 +249,8 @@ the Pi (flipped from `alternate` — TRMNL is now the sole source for
 `/dashboard`; native portrait layouts like `wild-swiss` are unused, see
 "Landscape mount" below). BYOS (`byos_laravel`) runs as a Docker container
 on Brendan's always-on Mac (`~/services/byos_laravel/docker/prod`),
-reachable from the Pi at `http://192.168.50.204:4567`. Playlist is mostly
+reachable from the Pi over Tailscale at `http://100.97.122.88:4567` (see
+"Mac addressing" below). Playlist is mostly
 still the seeded demo recipes (weather, quotes, history, etc.) plus one
 real recipe: **"CTA Transit"** (`server/transit-service.js` +
 `/api/transit`) — **fully live as of 2026-08-16**: both CTA keys are in the
@@ -280,10 +281,19 @@ re-run): **Morning** 06:00–11:00 (Zen+Weather|CTA mashup, Fitness, Todoist)
 and **Day & Evening** 11:00–22:00 (Calendar, Todoist, RSS, mashup);
 "Main Rotation" and "test" are deactivated. Alias rendering is enabled on
 recipes 10–15, so `npm run trmnl:preview -- --plugin <name>` works for all
-of them. Also from that session: the BYOS host Mac's LAN IP is DHCP-reserved
-at `192.168.50.204` on the router after a 3-week lease-expiry outage — if
-the Pi ever logs `EHOSTUNREACH` on BYOS fetches again, check that
-reservation first.
+of them.
+
+**Mac addressing (2026-10-11):** everything the Pi fetches from the Mac —
+`TRMNL_BASE_URL`, `RSS_DIGEST_URL`, and BYOS's own `APP_URL` (which builds
+the absolute `image_url`) — uses the Mac's **Tailscale IP `100.97.122.88`**.
+Both machines are on the tailnet (the Pi is node `pihole`, `100.85.77.43`).
+The earlier LAN-IP and `.local` approaches both failed in production: the
+Mac's private Wi-Fi MAC makes its DHCP lease drift (`EHOSTUNREACH`), and the
+Pi's long-running Node process loses mDNS resolution after a drift
+(`ENOTFOUND` until restart — 309 failures Sep 15–23). MagicDNS names do not
+resolve on the Pi, which is its own DNS server, so use the raw `100.x`
+address. If the Mac's Tailscale is logged out, these fetches fail; check
+`tailscale status` on the Mac first.
 
 Cautionary tale worth remembering: from 2026-08-10 to 2026-08-16 this screen
 *looked* shipped but the code had never been deployed to the Pi — BYOS was
