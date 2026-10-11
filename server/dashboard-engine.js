@@ -4,6 +4,7 @@ const { createCanvas, loadImage } = require('canvas');
 const fs = require('fs');
 const { format } = require('date-fns');
 const config = require('./config');
+const { wordClock } = require('./word-clock');
 const {
     roundTimeToNearest,
     getWeatherSymbol,
@@ -874,16 +875,26 @@ class TrmnlComponent extends ComponentBase {
 
             const rotation = this.config.rotation || config.TRMNL_ROTATION;
 
+            // Clock strip only for BYOS's pre-rotated portrait output (the
+            // amazon_kindle_7 model with TRMNL_ROTATION=none), where the
+            // landscape content's top edge is the canvas's right edge.
+            const strip = rotation === 'none' && image.height > image.width
+                ? Math.max(0, Number(config.TRMNL_CLOCK_STRIP_PX) || 0)
+                : 0;
+            // The strip takes its own column; the screen shrinks to fit
+            // beside it rather than having its headers covered.
+            const fitBounds = { ...contentBounds, width: contentBounds.width - strip };
+
             // Fit the footprint the image will actually occupy: unrotated
             // that's (width x height), rotated 90deg it's (height x width).
             const footprintWidth = rotation === 'none' ? image.width : image.height;
             const footprintHeight = rotation === 'none' ? image.height : image.width;
-            const scale = Math.min(contentBounds.width / footprintWidth, contentBounds.height / footprintHeight);
+            const scale = Math.min(fitBounds.width / footprintWidth, fitBounds.height / footprintHeight);
             const drawWidth = image.width * scale;
             const drawHeight = image.height * scale;
 
-            const centerX = contentBounds.x + contentBounds.width / 2;
-            const centerY = contentBounds.y + contentBounds.height / 2;
+            const centerX = fitBounds.x + fitBounds.width / 2;
+            const centerY = fitBounds.y + fitBounds.height / 2;
 
             ctx.save();
             ctx.translate(centerX, centerY);
@@ -893,7 +904,11 @@ class TrmnlComponent extends ComponentBase {
             ctx.drawImage(image, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
             ctx.restore();
 
-            this.drawBatteryChip(ctx, bounds);
+            if (strip > 0) {
+                this.drawClockStrip(ctx, contentBounds, strip);
+            } else {
+                this.drawBatteryChip(ctx, bounds);
+            }
         } catch (error) {
             console.warn(`Failed to render TRMNL screen: ${error.message}`);
 
@@ -911,12 +926,52 @@ class TrmnlComponent extends ComponentBase {
      * pre-rotates the bitmap for the amazon_kindle_7 device model); this
      * corner is the landscape content's bottom-right.
      */
-    drawBatteryChip(ctx, bounds) {
+    batteryLabel() {
         const stats = this.config.deviceStats;
         const level = stats && stats.battery && stats.battery.level;
-        if (level == null || level === 'unknown') return;
+        if (level == null || level === 'unknown') return null;
+        return `${level}%${stats.charging ? ' chg' : ''}`;
+    }
 
-        const label = `${level}%${stats.charging ? ' chg' : ''}`;
+    /**
+     * Quarter-hour word clock ("quarter past two · Sunday afternoon") along
+     * the top of the landscape content, with the battery level folded in so
+     * there's no separate corner chip. It's drawn here at request time rather
+     * than in a BYOS recipe so it's on every screen and never shows a time
+     * from the TRMNL screen cache.
+     */
+    drawClockStrip(ctx, bounds, strip) {
+        const { phrase, mood } = wordClock(new Date(), config.TIMEZONE);
+        const battery = this.batteryLabel();
+        const right = battery ? `${mood} \u00b7 ${battery}` : mood;
+        const length = bounds.height;   // landscape width
+        const rule = 3;
+        const pad = 20;
+
+        ctx.save();
+        // Rotate 90deg cw about the canvas's top-right corner: local x runs
+        // along the landscape top edge, local y into the canvas.
+        ctx.translate(bounds.x + bounds.width, bounds.y);
+        ctx.rotate(Math.PI / 2);
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, length, strip);
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, strip - rule, length, rule);
+
+        const midY = (strip - rule) / 2;
+        ctx.textBaseline = 'middle';
+        ctx.font = `bold ${Math.round(strip * 0.62)}px sans-serif`;
+        ctx.textAlign = 'left';
+        ctx.fillText(phrase, pad, midY);
+        ctx.font = `${Math.round(strip * 0.46)}px sans-serif`;
+        ctx.textAlign = 'right';
+        ctx.fillText(right, length - pad, midY);
+        ctx.restore();
+    }
+
+    drawBatteryChip(ctx, bounds) {
+        const label = this.batteryLabel();
+        if (!label) return;
         const fontPx = 18;
         const pad = 5;
 

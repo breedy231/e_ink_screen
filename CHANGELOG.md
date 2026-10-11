@@ -15,10 +15,15 @@ original planning tickets.
   polling `/api/poke`; daytime `POKE_INTERVAL` 20 → 60s (manual `/next` now
   lands within ~1 min instead of ~20s). 802.11 power-save is now on while
   connected (`WIFI_POWER_SAVE`; `start.sh` used to force it off).
-  New **Clock** recipe (`byos-recipes/clock`): a quarter-hour word clock
-  ("quarter past two" / "Sunday afternoon") computed at render time, floored
-  to the quarter so it stays true until the next 15-min redraw. Replaces Zen
-  in the Morning Board via `scripts/add-clock-tile.sh`.
+  **Word-clock strip** on every TRMNL screen: the Pi stamps a 52px
+  "quarter past two · Sunday afternoon · 45%" bar along the top edge
+  (`server/word-clock.js`, `TrmnlComponent.drawClockStrip`,
+  `TRMNL_CLOCK_STRIP_PX`, 0 disables). Time is floored to the quarter, so it
+  stays true until the next 15-min redraw, and computed per request so the
+  TRMNL screen cache never makes it stale. The BYOS screen shrinks ~9% to sit
+  beside it rather than being covered; the battery chip folds into the strip.
+  A standalone `byos-recipes/clock` recipe (same phrase, big type) is
+  imported but not in any playlist.
 - **2026-08-16 — CTA transit goes actually-live; faster rotation**: dropped the
   real CTA Bus Tracker + Train Tracker keys into the Pi's `.env` and confirmed
   live data end to end (`rail.source`/`bus.source` = `api`, real arrivals for
