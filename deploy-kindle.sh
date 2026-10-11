@@ -5,10 +5,15 @@
 #   fetch-dashboard.sh, dashboard-loop.sh, on-boot.sh, start.sh, stop.sh,
 #   get-device-stats.sh, config/dashboard.conf
 #
-# Auth: export KINDLE_PASSWORD before running (never hardcoded).
+# Auth: KINDLE_PASSWORD from the environment, else from ~/.config/kindle.env
+# (chmod 600, outside the repo: KINDLE_PASSWORD='...'). Never hardcoded.
 # Requires sshpass or expect on the dev machine.
 #
-# Usage: ./deploy-kindle.sh [--host IP] [--restart] [--install-boot-job]
+# Reachability: if the Kindle's port 22 isn't reachable directly (this Mac's
+# dual-NIC routing quirk does this), it jumps through the Pi (`ssh -J pi`)
+# automatically. Force a jump host with --via HOST, or disable with --via none.
+#
+# Usage: ./deploy-kindle.sh [--host IP] [--via HOST|none] [--restart] [--install-boot-job]
 #
 # --install-boot-job writes kindle/upstart/dashboard.conf to
 # /etc/upstart/dashboard.conf. That touches the read-only rootfs, so it is
@@ -22,19 +27,24 @@ KINDLE_USER="${KINDLE_USER:-root}"
 TARGET_DIR="/mnt/us/dashboard"
 RESTART=false
 INSTALL_BOOT_JOB=false
+VIA="${KINDLE_VIA:-auto}"
 
 while [ $# -gt 0 ]; do
     case $1 in
         --host)             KINDLE_HOST="$2"; shift 2 ;;
+        --via)              VIA="$2"; shift 2 ;;
         --restart)          RESTART=true; shift ;;
         --install-boot-job) INSTALL_BOOT_JOB=true; shift ;;
-        *) echo "Unknown option: $1 (usage: $0 [--host IP] [--restart] [--install-boot-job])"; exit 1 ;;
+        *) echo "Unknown option: $1 (usage: $0 [--host IP] [--via HOST|none] [--restart] [--install-boot-job])"; exit 1 ;;
     esac
 done
 
+if [ -z "$KINDLE_PASSWORD" ] && [ -f "$HOME/.config/kindle.env" ]; then
+    . "$HOME/.config/kindle.env"
+fi
 if [ -z "$KINDLE_PASSWORD" ]; then
-    echo "ERROR: KINDLE_PASSWORD is not set. Export it first:"
-    echo "  export KINDLE_PASSWORD='...'"
+    echo "ERROR: KINDLE_PASSWORD is not set. Export it, or put it in ~/.config/kindle.env:"
+    echo "  KINDLE_PASSWORD='...'"
     exit 1
 fi
 
@@ -56,6 +66,20 @@ done
 [ -f "$SCRIPT_DIR/$CONFIG_FILE" ] || { echo "ERROR: missing $CONFIG_FILE"; exit 1; }
 
 SSH_OPTS="-o ConnectTimeout=10 -o PreferredAuthentications=password -o PubkeyAuthentication=no -o StrictHostKeyChecking=no"
+
+if [ "$VIA" = "auto" ]; then
+    if nc -z -G 5 "$KINDLE_HOST" 22 2>/dev/null || nc -z -w 5 "$KINDLE_HOST" 22 2>/dev/null; then
+        VIA=none
+    else
+        echo "Kindle not reachable directly; jumping through the Pi"
+        VIA=pi
+    fi
+fi
+if [ "$VIA" != "none" ]; then
+    # The jump hop uses its own ~/.ssh/config entry (key auth); these
+    # password-only options apply to the Kindle hop.
+    SSH_OPTS="$SSH_OPTS -J $VIA"
+fi
 
 run_ssh() {
     if command -v sshpass >/dev/null 2>&1; then
@@ -120,7 +144,29 @@ fi
 
 if [ "$RESTART" = "true" ]; then
     echo "Restarting dashboard mode..."
-    run_ssh "sh $TARGET_DIR/stop.sh; sh $TARGET_DIR/start.sh"
+    # stop.sh restarts the Kindle framework, which bounces WiFi: its own
+    # session may drop, and SSH is unreachable for a while after. So
+    # start.sh gets a separate call, retried until the device is back.
+    run_ssh "sh $TARGET_DIR/stop.sh" || true
+    started=false
+    for attempt in 1 2 3 4 5 6 7 8; do
+        if run_ssh "sh $TARGET_DIR/start.sh > /tmp/start.out 2>&1; tail -2 /tmp/start.out"; then
+            started=true
+            break
+        fi
+        echo "  device not back yet (attempt $attempt), retrying in 10s..."
+        sleep 10
+    done
+    if [ "$started" != "true" ]; then
+        echo "ERROR: could not start the dashboard loop — the Kindle is in normal (framework) mode."
+        echo "  Retry: ./deploy-kindle.sh --restart"
+        exit 1
+    fi
+    if run_ssh "kill -0 \$(cat $TARGET_DIR/dashboard-loop.pid) 2>/dev/null"; then
+        echo "  loop running (PID file live)"
+    else
+        echo "WARNING: dashboard loop not running after restart — check $TARGET_DIR/logs/"
+    fi
 fi
 
 echo ""

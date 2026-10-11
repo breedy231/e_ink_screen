@@ -133,9 +133,13 @@ Device quirks that shape the scripts:
   power off` silently no-ops when started by hand. The loop now sets
   802.11 power-save from `WIFI_POWER_SAVE` by absolute path after every
   connect, so the config wins either way.
-- `stop.sh` drops an SSH session to the device mid-run; run `start.sh` in a
-  separate SSH call afterwards. If this Mac can't reach the Kindle (its
-  dual-NIC routing quirk), jump through the Pi: `ssh -J pi root@<kindle>`.
+- `stop.sh` restarts the framework, which bounces WiFi — its SSH session
+  can drop and the device is unreachable for ~30-60s after. Never chain
+  `stop.sh; start.sh` in one SSH call (start never runs and the Kindle is
+  left in normal mode). `deploy-kindle.sh --restart` handles this.
+- This Mac often can't reach the Kindle directly (dual-NIC routing quirk)
+  while the Pi can. `deploy-kindle.sh` auto-jumps through the Pi; by hand,
+  add `-J pi` to ssh/scp.
 
 Verify before deploy: `sh -n kindle/*.sh` (or just run `./scripts/validate.sh`).
 
@@ -171,8 +175,9 @@ cd server && npm start                # then: curl localhost:3000/dashboard
 
 # Deploy
 ./deploy-to-pi.sh                     # server → Pi (rsync + systemd restart)
-KINDLE_PASSWORD=... ./deploy-kindle.sh --restart   # scripts → Kindle
-KINDLE_PASSWORD=... ./deploy-kindle.sh --install-boot-job  # upstart job (writes rootfs)
+./deploy-kindle.sh --restart           # scripts → Kindle (auto-jumps via Pi if needed)
+./deploy-kindle.sh --install-boot-job  # upstart job (writes rootfs)
+# Password: KINDLE_PASSWORD env, else ~/.config/kindle.env (KINDLE_PASSWORD='...')
 ```
 
 Always run `./scripts/validate.sh` before deploying, and validate visual
@@ -206,6 +211,9 @@ white), no gradients. The server's `optimize-for-eink.py` pass
   future dev machine hits `Permission denied (publickey,password)`, that's
   per-machine, not a Pi-side problem — unblock it before server-side debugging.
   `/health` on port 3000 is plain HTTP and needs no SSH.
+- Battery drain history (every Kindle fetch logs `battery=N`), hourly sample:
+  `ssh pi 'journalctl -u kindle-dashboard --since "-3 days" --no-pager | grep -oE "^[A-Z][a-z]{2} [0-9]+ [0-9:]+|battery=[0-9]+" | paste - - | grep battery | awk "NR%6==1"'`
+  Baseline before 2026-10-11 changes: ~1.1%/hr, same day and night.
 - Ops runbook: `PI_PRODUCTION_GUIDE.md`. Layout system: `DASHBOARD_LAYOUTS.md`.
 
 ## Second screen — kitchen "Live Paper" (planned, 2026-08-16)
