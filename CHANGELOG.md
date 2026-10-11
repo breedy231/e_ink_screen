@@ -24,6 +24,16 @@ original planning tickets.
   beside it rather than being covered; the battery chip folds into the strip.
   A standalone `byos-recipes/clock` recipe (same phrase, big type) is
   imported but not in any playlist.
+- **2026-10-11 — Pi reaches the Mac over Tailscale**: `TRMNL_BASE_URL`,
+  `RSS_DIGEST_URL` (Pi `.env`) and BYOS's `APP_URL` (Mac
+  `~/services/byos_laravel/docker/prod/.env`) moved from
+  `Brendans-MacBook-Pro-2.local` to the Mac's Tailscale IP `100.97.122.88`.
+  Ends the IP-drift / mDNS-ENOTFOUND outage class (309 resolution failures
+  Sep 15–23). Verified with a forced `/next` advance: `lastScreenFetchedAt`
+  moved and the rendered PNG showed live content. Both `.env` files have
+  `.env.bak-20261011` backups. `config.js`'s `RSS_DIGEST_URL` default updated
+  to match.
+
 - **2026-08-16 — CTA transit goes actually-live; faster rotation**: dropped the
   real CTA Bus Tracker + Train Tracker keys into the Pi's `.env` and confirmed
   live data end to end (`rail.source`/`bus.source` = `api`, real arrivals for

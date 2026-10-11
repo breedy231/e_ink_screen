@@ -135,8 +135,8 @@ def fetch_device_screen(cfg, advance):
     # production before — resolve relative URLs, and say which host we hit.
     image_url = urllib.parse.urljoin(cfg["TRMNL_BASE_URL"], image_url)
     # BYOS builds image_url from its APP_URL, which is set for the Pi's
-    # benefit (mDNS .local name). This Mac can't always resolve its own
-    # .local name from python, and we already reached BYOS via
+    # benefit (the Mac's Tailscale IP). That address isn't guaranteed to be
+    # the one this run used, and we already reached BYOS via
     # TRMNL_BASE_URL — so download through that host instead.
     base = urllib.parse.urlparse(cfg["TRMNL_BASE_URL"])
     image_url = urllib.parse.urlparse(image_url)._replace(
