@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SYNTHETIC fixture. Structure reconstructed from archived Sun-Times RSS
+  captures (Brightspot, /rss/index.xml): <h2>Moon Alert</h2>, then one <h2>
+  per sign "Name (dates)" followed by a star-box reading "A <rating> day" and
+  the column text, ending with "If today is your birthday". The horoscope
+  TEXT below is original placeholder copy, not Georgia Nicols' column.
+  Replace with a real captured item on the first LAN run
+  (docs/scoping/horoscope-tile.md, local-deploy checklist).
+-->
+<rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>Chicago Sun-Times - All</title>
+    <link>https://chicago.suntimes.com</link>
+    <description>Fixture feed</description>
+    <item>
+      <title>Lakefront trail reopens after resurfacing</title>
+      <link>https://chicago.suntimes.com/news/2026/09/27/lakefront-trail-reopens</link>
+      <pubDate>Sun, 27 Sep 2026 14:10:00 GMT</pubDate>
+      <dc:creator>Staff</dc:creator>
+      <description><![CDATA[<p>Not a horoscope. The parser must skip this item.</p>]]></description>
+    </item>
+    <item>
+      <title>Horoscope for Sunday, September 27, 2026</title>
+      <link>https://chicago.suntimes.com/horoscopes/2026/09/27/horoscopes-today-sunday-september-27-2026</link>
+      <pubDate>Sun, 27 Sep 2026 05:01:00 GMT</pubDate>
+      <dc:creator>Georgia Nicols</dc:creator>
+      <description><![CDATA[
+<h2>Moon Alert</h2>
+<p>Avoid shopping (except food and gas) and important decisions from 10 a.m. to noon. The moon moves from Taurus into Gemini.</p>
+<h2>Aries (March 21-April 19)</h2>
+<div class="HoroscopeStarbox"><span class="HoroscopeStarbox-stars">&#9733;&#9733;&#9733;</span><span class="HoroscopeStarbox-label">A <b>so-so</b> day</span></div>
+<p>Errands pile up before lunch. Knock out the dull ones first and the afternoon opens up.</p>
+<h2>Taurus (April 20-May 20)</h2>
+<div class="HoroscopeStarbox"><span class="HoroscopeStarbox-stars">&#9733;&#9733;&#9733;&#9733;</span><span class="HoroscopeStarbox-label">A <b>positive</b> day</span></div>
+<p>Money matters look friendlier than they did last week, so this is a good day to sort out a bill or ask a direct question about pay. A neighbour or sibling has news worth hearing. Keep the evening simple &mdash; a quiet meal at home suits you better than a crowd.</p>
+<h2>Gemini (May 21-June 20)</h2>
+<div class="HoroscopeStarbox"><span class="HoroscopeStarbox-stars">&#9733;&#9733;&#9733;&#9733;&#9733;</span><span class="HoroscopeStarbox-label">A <b>dynamic</b> day</span></div>
+<p>The moon enters your sign today, and you feel it by midday.</p>
+<h2>Virgo (Aug. 23-Sept. 22)</h2>
+<div class="HoroscopeStarbox"><span class="HoroscopeStarbox-stars">&#9733;&#9733;&#9733;</span><span class="HoroscopeStarbox-label">A <b>average</b> day</span></div>
+<p>Tidy one corner of your space; it clears your head more than you expect.</p>
+<h2>Libra (Sept. 23-Oct. 22)</h2>
+<div class="HoroscopeStarbox"><span class="HoroscopeStarbox-stars">&#9733;&#9733;&#9733;</span><span class="HoroscopeStarbox-label">A <b>average</b> day</span></div>
+<p>Someone close to you wants a straight answer, and today you can give one without it turning into a debate. Travel plans or a class you&rsquo;ve been eyeing come back into focus. Don&rsquo;t sign anything big before noon; after that, you&rsquo;re on firmer ground.</p>
+<h2>Scorpio (Oct. 23-Nov. 21)</h2>
+<div class="HoroscopeStarbox"><span class="HoroscopeStarbox-stars">&#9733;&#9733;&#9733;&#9733;</span><span class="HoroscopeStarbox-label">A <b>positive</b> day</span></div>
+<p>Shared resources and practical favours are the theme today.</p>
+<h2>If today is your birthday</h2>
+<p>Placeholder birthday paragraph.</p>
+]]></description>
+    </item>
+    <item>
+      <title>Horoscope for Saturday, September 26, 2026</title>
+      <link>https://chicago.suntimes.com/horoscopes/2026/09/26/horoscopes-today-saturday-september-26-2026</link>
+      <pubDate>Sat, 26 Sep 2026 05:01:00 GMT</pubDate>
+      <dc:creator>Georgia Nicols</dc:creator>
+      <description><![CDATA[
+<h2>Moon alert</h2>
+<p>There are no restrictions to shopping or important decisions today. The moon is in Taurus.</p>
+<h2>Taurus (April 20-May 20)</h2>
+<div class="HoroscopeStarbox"><span class="HoroscopeStarbox-label">A <b>dynamic</b> day</span></div>
+<p>Yesterday&rsquo;s placeholder text for Taurus.</p>
+<h2>Libra (Sept. 23-Oct. 22)</h2>
+<div class="HoroscopeStarbox"><span class="HoroscopeStarbox-label">A <b>so-so</b> day</span></div>
+<p>Yesterday&rsquo;s placeholder text for Libra.</p>
+]]></description>
+    </item>
+  </channel>
+</rss>
