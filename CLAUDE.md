@@ -128,7 +128,14 @@ Device quirks that shape the scripts:
 - The device does not answer ICMP; `ping` failing says nothing. Use
   `nc -z <ip> 22`.
 - `keepAliveWirelessRadio` does not exist on Kindle Touch powerd
-  (`lipcErrNoSuchProperty`). Only `iwconfig <if> power off` holds the radio up.
+  (`lipcErrNoSuchProperty`). `iwconfig` is `/usr/sbin/iwconfig` — on the
+  PATH under upstart at boot but NOT over SSH, so `start.sh`'s `iwconfig
+  power off` silently no-ops when started by hand. The loop now sets
+  802.11 power-save from `WIFI_POWER_SAVE` by absolute path after every
+  connect, so the config wins either way.
+- `stop.sh` drops an SSH session to the device mid-run; run `start.sh` in a
+  separate SSH call afterwards. If this Mac can't reach the Kindle (its
+  dual-NIC routing quirk), jump through the Pi: `ssh -J pi root@<kindle>`.
 
 Verify before deploy: `sh -n kindle/*.sh` (or just run `./scripts/validate.sh`).
 
