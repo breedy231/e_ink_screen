@@ -119,6 +119,7 @@ enable_wifi() {
     while [ $waited -lt $WIFI_WAIT_MAX ]; do
         if ifconfig wlan0 2>/dev/null | grep -q "inet addr"; then
             log_msg "WiFi connected (${waited}s)"
+            apply_wifi_power_save
             return 0
         fi
         sleep 2
@@ -127,6 +128,16 @@ enable_wifi() {
 
     log_msg "WARNING: WiFi not connected after ${WIFI_WAIT_MAX}s"
     return 1
+}
+
+# 802.11 power-save: "on" lets the radio doze between beacons while staying
+# associated; "off" keeps it at full power. start.sh forces it off (an old
+# fix for a "WiFi drops" theory that turned out to be battery death); this
+# runs after start.sh and after every reconnect, so the config wins.
+apply_wifi_power_save() {
+    if type iwconfig >/dev/null 2>&1; then
+        iwconfig wlan0 power "${WIFI_POWER_SAVE:-on}" 2>/dev/null || true
+    fi
 }
 
 # Turn the radio off. Overnight there's nothing to fetch and no reason to

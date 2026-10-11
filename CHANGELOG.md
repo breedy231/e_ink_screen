@@ -13,7 +13,12 @@ original planning tickets.
   (e.g. 66% at 21:20 → 55% at 07:20), so idle radio, not refreshes, is the
   main cost. Outside active hours the loop now turns WiFi off and stops
   polling `/api/poke`; daytime `POKE_INTERVAL` 20 → 60s (manual `/next` now
-  lands within ~1 min instead of ~20s).
+  lands within ~1 min instead of ~20s). 802.11 power-save is now on while
+  connected (`WIFI_POWER_SAVE`; `start.sh` used to force it off).
+  New **Clock** recipe (`byos-recipes/clock`): a quarter-hour word clock
+  ("quarter past two" / "Sunday afternoon") computed at render time, floored
+  to the quarter so it stays true until the next 15-min redraw. Replaces Zen
+  in the Morning Board via `scripts/add-clock-tile.sh`.
 - **2026-08-16 — CTA transit goes actually-live; faster rotation**: dropped the
   real CTA Bus Tracker + Train Tracker keys into the Pi's `.env` and confirmed
   live data end to end (`rail.source`/`bus.source` = `api`, real arrivals for
