@@ -7,6 +7,7 @@ uses. These are the source of truth — BYOS's sqlite DB is downstream of them.
 |-----------|-----------------------|----------------|
 | `cta/`     | CTA Transit (10)     | `full`, `half_vertical` |
 | `weather/` | Weather Chicago (11) | `full`, `quadrant` |
+| `clock/`   | Clock (static, no data source) | `full`, `quadrant` |
 
 The `id:` in each `settings.yml` is the recipe's `trmnlp_id` and must match
 the URL you import to. To push a change:

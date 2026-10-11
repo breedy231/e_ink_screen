@@ -102,6 +102,9 @@ module.exports = {
     TRMNL_API_KEY: process.env.TRMNL_API_KEY || null,
     TRMNL_CACHE_TTL_MS: parseInt(process.env.TRMNL_CACHE_TTL_MS, 10) || 600000,
     TRMNL_ROTATION: process.env.TRMNL_ROTATION || 'cw',   // 'cw' | 'ccw'
+    // Word-clock strip along the top of TRMNL screens, in px; 0 disables.
+    // Only drawn for BYOS pre-rotated portrait output (TRMNL_ROTATION=none).
+    TRMNL_CLOCK_STRIP_PX: parseInt(process.env.TRMNL_CLOCK_STRIP_PX || '52', 10),
     TRMNL_SLOT_MINUTES: parseInt(process.env.TRMNL_SLOT_MINUTES, 10) || 15,
     // How old the last good BYOS screen may get, while fetches fail, before
     // the Discord staleness alert fires. See trmnl-staleness-alert.js.
