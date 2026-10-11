@@ -3,6 +3,17 @@
 Milestone history, most recent first. Task IDs (KD-XXX) reference the
 original planning tickets.
 
+- **2026-10-11 — Quieter refresh, better battery**: `UPDATE_INTERVAL` 600 →
+  900 (aligned to :00/:15/:30/:45). The display path used to flash the panel
+  three times per update (`eips -c` pre-clear, `eips -f -g`, then a second
+  `eips -f -g` pass); it is now one flash-free partial refresh, with a full
+  refresh only every `FULL_REFRESH_EVERY` draws (default 4 = hourly) to clear
+  ghosting, and no redraw at all when the downloaded PNG is byte-identical to
+  the last one. Battery: Pi logs showed ~1.1%/hr drain *both* day and night
+  (e.g. 66% at 21:20 → 55% at 07:20), so idle radio, not refreshes, is the
+  main cost. Outside active hours the loop now turns WiFi off and stops
+  polling `/api/poke`; daytime `POKE_INTERVAL` 20 → 60s (manual `/next` now
+  lands within ~1 min instead of ~20s).
 - **2026-08-16 — CTA transit goes actually-live; faster rotation**: dropped the
   real CTA Bus Tracker + Train Tracker keys into the Pi's `.env` and confirmed
   live data end to end (`rail.source`/`bus.source` = `api`, real arrivals for

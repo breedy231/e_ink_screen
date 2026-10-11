@@ -143,6 +143,8 @@ load_config() {
     TIMEOUT="${cli_timeout:-${TIMEOUT:-${DEFAULT_TIMEOUT}}}"
     RETRIES="${cli_retries:-${RETRIES:-${DEFAULT_RETRIES}}}"
     BACKUP_IMAGE="${BACKUP_IMAGE:-${DEFAULT_BACKUP_IMAGE}}"
+    # Present while a fallback image (not the latest download) is on screen
+    FALLBACK_MARKER="${DASHBOARD_DIR}/.fallback_shown"
 
     # Fail loudly rather than fetch from a guessed/stale address
     if [ -z "${SERVER_HOST}" ]; then
@@ -416,16 +418,6 @@ verify_image() {
     return 0
 }
 
-clear_screen_before_display() {
-    log_debug "Pre-clearing screen to ensure clean display..."
-
-    # Single pass clear before image display
-    if [ -x "/usr/sbin/eips" ]; then
-        /usr/sbin/eips -c >/dev/null 2>&1 || true
-        sleep 1  # Brief pause for e-ink settling (integer seconds only)
-    fi
-}
-
 display_image() {
     local image_file="$1"
     local refresh_type="${2:-full}"
@@ -448,10 +440,9 @@ display_image() {
         return 1
     fi
 
-    # Clear screen before displaying new image
-    clear_screen_before_display
-
-    # Display image using eips
+    # Display image using eips. No pre-clear and no second pass: each of
+    # those was a visible black/white flash. Ghosting from partial updates is
+    # cleaned up by the periodic full refresh (see pick_refresh_type).
     local eips_args="-g"
     if [ "${refresh_type}" = "full" ]; then
         eips_args="-f -g"
@@ -461,19 +452,34 @@ display_image() {
     fi
 
     if /usr/sbin/eips ${eips_args} "${image_file}"; then
-        log_info "Image displayed successfully"
-
-        # For full refresh, add a second pass to ensure complete rendering
-        if [ "${refresh_type}" = "full" ]; then
-            sleep 1
-            /usr/sbin/eips -f -g "${image_file}" >/dev/null 2>&1 || true
-            log_debug "Secondary full refresh pass completed"
-        fi
-
+        log_info "Image displayed successfully (${refresh_type})"
         return 0
     else
         log_error "Failed to display image"
         return 1
+    fi
+}
+
+# Full (flashing) refresh on every FULL_REFRESH_EVERY-th draw, partial
+# (no flash) otherwise. Counter lives on disk so it survives loop restarts.
+pick_refresh_type() {
+    local every="${FULL_REFRESH_EVERY:-4}"
+    local counter_file="${DASHBOARD_DIR}/.draw_count"
+    local count
+
+    count=$(cat "${counter_file}" 2>/dev/null)
+    case "$count" in
+        ''|*[!0-9]*) count=0 ;;
+    esac
+    count=$((count + 1))
+    if [ "${DRY_RUN}" != "true" ]; then
+        echo "$count" > "${counter_file}"
+    fi
+
+    if [ "${FORCE_REFRESH}" = "true" ] || [ "$every" -le 1 ] || [ $((count % every)) -eq 0 ]; then
+        echo "full"
+    else
+        echo "partial"
     fi
 }
 
@@ -482,6 +488,7 @@ handle_fallback() {
     local previous_file="${DASHBOARD_DIR}/previous.png"
 
     log_warn "Attempting fallback image display..."
+    touch "${FALLBACK_MARKER}" 2>/dev/null || true
 
     # Try previous image first
     if [ -f "${previous_file}" ]; then
@@ -569,8 +576,21 @@ main() {
     if download_dashboard; then
         local current_file="${DASHBOARD_DIR}/current.png"
 
+        local previous_file="${DASHBOARD_DIR}/previous.png"
+
+        # Same pixels as what's on screen: don't touch the panel at all.
+        # (Unless a fallback image is showing — then previous.png isn't
+        # what's on the panel.)
+        if [ "${FORCE_REFRESH}" != "true" ] && [ -f "${previous_file}" ] \
+            && [ ! -f "${FALLBACK_MARKER}" ] \
+            && cmp -s "${current_file}" "${previous_file}"; then
+            log_info "Dashboard unchanged, skipping redraw"
+            return 0
+        fi
+
         # Display the new image
-        if display_image "${current_file}" "full"; then
+        if display_image "${current_file}" "$(pick_refresh_type)"; then
+            rm -f "${FALLBACK_MARKER}"
             log_info "Dashboard update completed successfully"
             return 0
         else

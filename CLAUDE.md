@@ -320,11 +320,12 @@ landscape canvas — that's still open, see below.
 
 ### Rotation cadence (investigated 2026-08-15, changed 2026-08-16)
 
-**Current setting: ~5 min.** `TRMNL_CACHE_TTL_MS=240000` (Pi `.env`) and
-`UPDATE_INTERVAL=300` (Kindle config). The TTL is deliberately 4 min, not 5:
-the effective cadence is `max(UPDATE_INTERVAL, TRMNL_CACHE_TTL_MS)`, so equal
-values risk a poll finding the cache 299s old, serving a stale image and
-skipping the playlist advance — which would silently give 10-min cadence.
+**Current setting: 15 min (2026-10-11).** `UPDATE_INTERVAL=900` (Kindle
+config) with `TRMNL_CACHE_TTL_MS=480000` (Pi `.env`, 8 min). History: 15 →
+5 (2026-08-16) → 10 (2026-09-24) → 15 — 5 and 10 were both too distracting.
+The effective cadence is `max(UPDATE_INTERVAL, TRMNL_CACHE_TTL_MS)`; equal
+values risk a poll finding the cache barely-fresh, serving a stale image and
+skipping the playlist advance.
 Keep the TTL comfortably below the poll interval. Also note
 `TRMNL_SLOT_MINUTES` does nothing under `TRMNL_MODE=only`
 (`local-dashboard-server.js:192` reads it only in `alternate` mode).
