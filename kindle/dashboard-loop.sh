@@ -173,7 +173,7 @@ show_night_screen() {
 
     rm -f "$night_file"
     if enable_wifi && wget -q -O "$night_file" "$url" 2>/dev/null \
-        && [ -s "$night_file" ] && head -c 4 "$night_file" | grep -q PNG; then
+        && [ -s "$night_file" ] && head -n 1 "$night_file" | grep -q PNG; then
         image="$night_file"
     elif [ -f "$fallback" ]; then
         log_msg "Night screen fetch failed, using bundled fallback"
