@@ -53,6 +53,16 @@ class LocalDashboardServer {
         // fetches and refreshes immediately when this advances (seconds
         // epoch — busybox sh arithmetic is safer below 32 bits).
         this.pokeAt = 0;
+
+        // Raised by /hold: the Kindle keeps its radio on between fetches
+        // until this passes (ms epoch), so it can be reached over SSH. With
+        // WIFI_BETWEEN_FETCHES=off it's otherwise up ~10s per quarter hour.
+        this.wifiHoldUntil = 0;
+        // When /hold was set, and when the Kindle last saw an active hold
+        // (it only checks right after a fetch). deploy-kindle.sh waits for
+        // ack >= set, i.e. the radio is now being held, before copying.
+        this.wifiHoldSetAt = 0;
+        this.wifiHoldAckAt = 0;
     }
 
     log(message, level = 'INFO') {
@@ -273,12 +283,29 @@ class LocalDashboardServer {
 <meta name="viewport" content="width=device-width, initial-scale=1"><title>Kindle Dashboard</title></head>
 <body style="font-family:-apple-system,sans-serif; text-align:center; padding-top:15vh; background:#fff; color:#000;">
 <h1 style="font-size:2rem;">Screen advanced &#10003;</h1>
-<p style="font-size:1.1rem; color:#444;">The Kindle refreshes shortly.</p>
+<p style="font-size:1.1rem; color:#444;">The Kindle shows it on its next refresh (within 15 min).</p>
 <p style="margin-top:3rem;"><a href="/next" style="display:inline-block; padding:1.2rem 2.5rem; border:3px solid #000; border-radius:8px; text-decoration:none; color:#000; font-size:1.4rem; font-weight:bold;">Next screen &rarr;</a></p>
 </body></html>`);
         } catch (error) {
             this.handleError(res, error, 'Failed to advance TRMNL screen');
         }
+    }
+
+    /**
+     * Keep the Kindle's radio on for ?minutes= (default 30) so it can be
+     * reached for a deploy or debugging. Takes effect at its next fetch.
+     * deploy-kindle.sh calls this itself.
+     */
+    handleWifiHold(req, res, parsedUrl) {
+        const minutes = Math.min(Math.max(Number(parsedUrl.searchParams.get('minutes')) || 30, 1), 120);
+        // Extending an already-acknowledged hold stays acknowledged
+        if (Date.now() >= this.wifiHoldUntil || this.wifiHoldAckAt < this.wifiHoldSetAt) {
+            this.wifiHoldSetAt = Date.now();
+        }
+        this.wifiHoldUntil = Date.now() + minutes * 60000;
+        this.log(`Kindle WiFi hold for ${minutes} min`);
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.end(`Kindle radio stays on for ${minutes} min, starting at its next fetch (within 15 min).\n`);
     }
 
     handlePoke(req, res) {
@@ -597,6 +624,24 @@ class LocalDashboardServer {
 
                 case '/api/poke':
                     this.handlePoke(req, res);
+                    break;
+
+                case '/hold':
+                    this.handleWifiHold(req, res, parsedUrl);
+                    break;
+
+                case '/api/hold': {
+                    const held = Date.now() < this.wifiHoldUntil;
+                    if (held) this.wifiHoldAckAt = Date.now();
+                    res.writeHead(200, { 'Content-Type': 'text/plain' });
+                    res.end(held ? '1' : '0');
+                    break;
+                }
+
+                case '/api/hold/status':
+                    res.writeHead(200, { 'Content-Type': 'text/plain' });
+                    res.end(Date.now() < this.wifiHoldUntil && this.wifiHoldAckAt >= this.wifiHoldSetAt
+                        ? 'acked' : 'waiting');
                     break;
 
                 case '/health':

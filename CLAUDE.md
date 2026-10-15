@@ -133,6 +133,7 @@ Device quirks that shape the scripts:
   power off` silently no-ops when started by hand. The loop now sets
   802.11 power-save from `WIFI_POWER_SAVE` by absolute path after every
   connect, so the config wins either way.
+- Busybox `head` has no `-c` (and `grep` has no `-E`).
 - `stop.sh` restarts the framework, which bounces WiFi — its SSH session
   can drop and the device is unreachable for ~30-60s after. Never chain
   `stop.sh; start.sh` in one SSH call (start never runs and the Kindle is
@@ -214,6 +215,18 @@ white), no gradients. The server's `optimize-for-eink.py` pass
 - Battery drain history (every Kindle fetch logs `battery=N`), hourly sample:
   `ssh pi 'journalctl -u kindle-dashboard --since "-3 days" --no-pager | grep -oE "^[A-Z][a-z]{2} [0-9]+ [0-9:]+|battery=[0-9]+" | paste - - | grep battery | awk "NR%6==1"'`
   Baseline before 2026-10-11 changes: ~1.1%/hr, same day and night.
+  After 2026-10-11 (radio off overnight): night 0.43%/hr (the floor — the CPU
+  can't suspend), day ~1.05%/hr. The difference is the radio staying
+  associated, so since 2026-10-15 `WIFI_BETWEEN_FETCHES="off"` turns it off
+  between daytime fetches too (expect ~0.5%/hr; `/next` waits for the next
+  quarter). To compare, also count fetches 7:00–21:45 (60 expected/day) —
+  missed quarters are the cost of cold reconnects.
+- **Reaching the Kindle with the radio off between fetches:** it's on WiFi
+  only ~10s per quarter hour. `curl http://192.168.50.163:3000/hold` (default
+  30 min, `?minutes=` up to 120) makes the loop keep the radio on from its
+  next fetch. `deploy-kindle.sh` does this itself and waits up to 17 min.
+  `stop.sh` re-enables WiFi after killing the loop (SIGKILL skips the loop's
+  own cleanup). Rollback: `WIFI_BETWEEN_FETCHES="on"` in dashboard.conf.
 - Ops runbook: `PI_PRODUCTION_GUIDE.md`. Layout system: `DASHBOARD_LAYOUTS.md`.
 
 ## Second screen — kitchen "Live Paper" (planned, 2026-08-16)

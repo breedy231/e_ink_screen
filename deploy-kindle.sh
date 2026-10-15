@@ -74,6 +74,41 @@ done
 
 SSH_OPTS="-o ConnectTimeout=10 -o PreferredAuthentications=password -o PubkeyAuthentication=no -o StrictHostKeyChecking=no"
 
+# The loop turns the Kindle's radio off between fetches
+# (WIFI_BETWEEN_FETCHES=off), so ask the Pi to hold it on and wait for the
+# next fetch to bring it up. Harmless when the radio is already on.
+PI_HTTP="${PI_HTTP:-http://192.168.50.163:3000}"
+kindle_reachable() {
+    nc -z -G 5 "$KINDLE_HOST" 22 2>/dev/null || nc -z -w 5 "$KINDLE_HOST" 22 2>/dev/null \
+        || ssh -o ConnectTimeout=5 pi "nc -z -w 3 $KINDLE_HOST 22" 2>/dev/null
+}
+# Being reachable right now isn't enough: the radio may be in its ~10s
+# post-fetch window and drop mid-copy. Wait until the Kindle has seen the
+# hold (it checks right after each fetch), then until it answers SSH.
+if curl -s -m 5 "$PI_HTTP/hold?minutes=30" >/dev/null; then
+    echo "WiFi hold set; waiting for the Kindle to pick it up at its next fetch (up to 17 min)..."
+    waited=0
+    until [ "$(curl -s -m 5 "$PI_HTTP/api/hold/status")" = "acked" ]; do
+        if [ "$waited" -ge 1020 ]; then
+            # e.g. WIFI_BETWEEN_FETCHES=on, where the loop never asks
+            echo "WARNING: hold never acknowledged; continuing if the Kindle is reachable"
+            break
+        fi
+        sleep 15
+        waited=$((waited + 15))
+    done
+else
+    echo "WARNING: could not set WiFi hold on the Pi ($PI_HTTP)"
+fi
+waited=0
+until kindle_reachable; do
+    if [ "$waited" -ge 120 ]; then
+        echo "ERROR: Kindle unreachable"; exit 1
+    fi
+    sleep 10
+    waited=$((waited + 10))
+done
+
 if [ "$VIA" = "auto" ]; then
     if nc -z -G 5 "$KINDLE_HOST" 22 2>/dev/null || nc -z -w 5 "$KINDLE_HOST" 22 2>/dev/null; then
         VIA=none
@@ -114,18 +149,30 @@ run_scp() {
     fi
 }
 
+# Retry a transfer a few times: a WiFi blip mid-deploy shouldn't leave a
+# partial file set behind with no second attempt.
+retry() {
+    local n=1
+    until "$@"; do
+        if [ "$n" -ge 3 ]; then
+            echo "ERROR: failed after 3 tries: $*"; return 1
+        fi
+        echo "  retrying ($n)..."; sleep 10; n=$((n + 1))
+    done
+}
+
 export SSHPASS="$KINDLE_PASSWORD"
 
 echo "Deploying to $KINDLE_USER@$KINDLE_HOST:$TARGET_DIR"
-run_ssh "mkdir -p $TARGET_DIR/config $TARGET_DIR/logs"
+retry run_ssh "mkdir -p $TARGET_DIR/config $TARGET_DIR/logs"
 
 for f in $FILES $ASSETS; do
     echo "  -> $(basename "$f")"
-    run_scp "$SCRIPT_DIR/$f" "$TARGET_DIR/$(basename "$f")"
+    retry run_scp "$SCRIPT_DIR/$f" "$TARGET_DIR/$(basename "$f")"
 done
 
 echo "  -> config/dashboard.conf"
-run_scp "$SCRIPT_DIR/$CONFIG_FILE" "$TARGET_DIR/config/dashboard.conf"
+retry run_scp "$SCRIPT_DIR/$CONFIG_FILE" "$TARGET_DIR/config/dashboard.conf"
 
 # chmod is best-effort: /mnt/us is vfat, so scripts are invoked as `sh script`
 # and the exec bit is not relied upon.
