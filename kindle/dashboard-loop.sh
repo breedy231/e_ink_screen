@@ -11,6 +11,7 @@
 #   2. Set preventScreenSaver (keeps dashboard visible)
 #   3. Enable WiFi, fetch dashboard, display on e-ink
 #   4. Sleep for interval, then repeat
+#   5. Outside active hours: show the night screen once, radio off
 #
 # Must be started after boot to survive reboots — see init script.
 #
@@ -153,9 +154,45 @@ disable_wifi() {
     fi
 }
 
+# Night screen: drawn once as active hours end, then left up all night with
+# the radio off. It says when it went to sleep and when it wakes, so a
+# screen that's still up after the wake time is obviously stale. Rendered by
+# the Pi (tomorrow's calendar + weather); if the Pi can't be reached, the
+# bundled night-fallback.png goes up instead — never the last dashboard,
+# which would look live.
+show_night_screen() {
+    local night_file="${DASHBOARD_DIR:-$SCRIPT_DIR}/night.png"
+    local fallback="$SCRIPT_DIR/night-fallback.png"
+    local url="http://${SERVER_HOST}:${SERVER_PORT}/dashboard?layout=night"
+    local level charging image=""
+
+    level=$(gasgauge-info -c 2>/dev/null | tr -d ' %')
+    case "$level" in ''|*[!0-9]*) ;; *) url="${url}&battery=${level}" ;; esac
+    charging=$(lipc-get-prop com.lab126.powerd isCharging 2>/dev/null)
+    case "$charging" in 0|1) url="${url}&charging=${charging}" ;; esac
+
+    rm -f "$night_file"
+    if enable_wifi && wget -q -O "$night_file" "$url" 2>/dev/null \
+        && [ -s "$night_file" ] && head -n 1 "$night_file" | grep -q PNG; then
+        image="$night_file"
+    elif [ -f "$fallback" ]; then
+        log_msg "Night screen fetch failed, using bundled fallback"
+        image="$fallback"
+    fi
+
+    if [ -n "$image" ] && [ -x "/usr/sbin/eips" ]; then
+        /usr/sbin/eips -f -g "$image" 2>/dev/null && log_msg "Night screen shown ($image)"
+    fi
+    NIGHT_SHOWN=true
+    # The panel no longer shows previous.png: make the morning's first draw
+    # a forced full refresh (also clears the night screen's ghosting).
+    DRAWN_SINCE_START=false
+}
+
 # Fetch and display dashboard
 do_update() {
     log_msg "--- Update ---"
+    NIGHT_SHOWN=false
 
     # Re-assert sleep prevention every cycle
     prevent_sleep
@@ -371,6 +408,7 @@ main() {
     else
         current_hour=$(get_central_hour)
         log_msg "Outside active hours (${current_hour}:00, active ${ACTIVE_HOURS_START}:00-${ACTIVE_HOURS_END}:00), skipping initial fetch"
+        show_night_screen
     fi
 
     if [ "$RUN_ONCE" = "true" ]; then
@@ -412,6 +450,11 @@ main() {
         else
             current_hour=$(get_central_hour)
             log_msg "Outside active hours (${current_hour}:00, active ${ACTIVE_HOURS_START}:00-${ACTIVE_HOURS_END}:00), skipping fetch"
+            # First off-hours wake: the radio is still on from the day, so
+            # draw the night screen before the next pass turns it off.
+            if [ "${NIGHT_SHOWN:-false}" != "true" ]; then
+                show_night_screen
+            fi
         fi
     done
 

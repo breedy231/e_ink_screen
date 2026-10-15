@@ -4,6 +4,7 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const config = require('./config');
+const { localDateIso } = require('./local-date');
 
 /**
  * Todoist Service Module — today + overdue tasks for the dashboard.
@@ -141,7 +142,7 @@ class TodoistService {
      * p1 = API priority 4) and time. `todayIso`/`now` injectable for tests.
      */
     parseTasks(raw, todayIso, now) {
-        const today = todayIso || new Date().toISOString().slice(0, 10);
+        const today = todayIso || localDateIso(now || new Date(), config.TIMEZONE);
         const workHours = this.isWorkHours(now);
         const projectNames = {};
         for (const p of (raw && raw.projects) || []) projectNames[p.id] = p.name;

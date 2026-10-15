@@ -5,6 +5,7 @@ const fs = require('fs');
 const { format } = require('date-fns');
 const config = require('./config');
 const { wordClock } = require('./word-clock');
+const { buildNightModel } = require('./night-screen');
 const {
     roundTimeToNearest,
     getWeatherSymbol,
@@ -30,8 +31,9 @@ class GridSystem {
         this.height = height;
         this.rows = options.rows || 12;
         this.cols = options.cols || 8;
-        this.margin = options.margin || 10;
-        this.gap = options.gap || 5;
+        // ?? not ||: layouts set margin/gap 0 on purpose (trmnl, night)
+        this.margin = options.margin ?? 10;
+        this.gap = options.gap ?? 5;
 
         // Calculate grid cell dimensions
         this.cellWidth = (this.width - (2 * this.margin) - ((this.cols - 1) * this.gap)) / this.cols;
@@ -1330,6 +1332,137 @@ class SwissPosterComponent extends ComponentBase {
  * entry here, and reference the type from a layout JSON. Enrichment and
  * data-service selection derive everything else from this table.
  */
+/**
+ * Night screen (outside active hours). Drawn once as the Kindle's radio goes
+ * off and left up until morning; see night-screen.js for what it says and
+ * why. Laid out landscape (800x600) and rotated cw onto the portrait canvas,
+ * the same orientation as the TRMNL screens it replaces overnight.
+ */
+class NightComponent extends ComponentBase {
+    static dataNeeds = ['calendar', 'weather', 'deviceStats'];
+
+    constructor(config = {}) {
+        super('night', { padding: 0, ...config });
+    }
+
+    render(ctx, bounds) {
+        const model = buildNightModel({
+            now: new Date(),
+            timeZone: config.TIMEZONE,
+            wakeHour: config.ACTIVE_HOURS_START,
+            safeLevel: config.BEDTIME_SAFE_LEVEL,
+            calendar: this.config.calendarData || null,
+            weather: this.config.weatherData || null,
+            deviceStats: this.config.deviceStats || null
+        });
+
+        const W = bounds.height;   // landscape width
+        const H = bounds.width;    // landscape height
+        const pad = 28;
+        const headerH = 96;
+        const footerH = 94;
+        const colTop = headerH + 4;
+        const colBottom = H - footerH;
+        const mid = W / 2;
+
+        ctx.save();
+        ctx.translate(bounds.x + bounds.width, bounds.y);
+        ctx.rotate(Math.PI / 2);
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, W, H);
+        ctx.fillStyle = '#000';
+        ctx.textBaseline = 'middle';
+
+        // Header
+        ctx.font = 'bold 46px sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText('Good night', pad, headerH / 2);
+        ctx.font = '26px sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText(model.nightOf, W - pad, headerH / 2);
+        ctx.fillRect(0, headerH, W, 4);
+        ctx.fillRect(mid - 1, colTop, 2, colBottom - colTop);
+
+        // Column headings
+        const colW = mid - pad * 2;
+        const heading = (text, x) => {
+            ctx.font = 'bold 26px sans-serif';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'top';
+            ctx.fillText(text, x, colTop + 18);
+            ctx.fillRect(x, colTop + 56, colW, 2);
+        };
+        heading(model.nextDayHeading, pad);
+        heading(model.nextDayName, mid + pad);
+
+        // Left: the next day's calendar
+        let y = colTop + 72;
+        ctx.textBaseline = 'top';
+        if (model.events.length === 0) {
+            ctx.font = '24px sans-serif';
+            ctx.fillText('Nothing on the calendar', pad, y);
+        }
+        for (const event of model.events) {
+            ctx.font = 'bold 26px sans-serif';
+            ctx.fillText(event.time, pad, y);
+            ctx.font = '24px sans-serif';
+            ctx.fillText(truncateText(ctx, event.name, colW), pad, y + 32);
+            y += 78;
+        }
+        if (model.moreEvents > 0) {
+            ctx.font = '24px sans-serif';
+            ctx.fillText(`+${model.moreEvents} more`, pad, y);
+        }
+
+        // Right: the next day's weather
+        const wx = mid + pad;
+        y = colTop + 72;
+        if (model.weather) {
+            ctx.font = 'bold 80px sans-serif';
+            ctx.fillText(model.weather.high, wx, y);
+            const highW = ctx.measureText(model.weather.high).width;
+            ctx.font = '44px sans-serif';
+            ctx.fillText(` / ${model.weather.low}`, wx + highW, y + 28);
+            ctx.font = '24px sans-serif';
+            ctx.fillText(truncateText(ctx, model.weather.condition, colW), wx, y + 104);
+            if (model.weather.sunrise) {
+                ctx.fillText(`Sunrise ${model.weather.sunrise}`, wx, y + 138);
+            }
+        } else {
+            ctx.font = '24px sans-serif';
+            ctx.fillText('Forecast unavailable', wx, y);
+        }
+
+        // Footer: when it went to sleep, when it wakes, battery
+        ctx.fillRect(0, colBottom, W, footerH);
+        ctx.fillStyle = '#fff';
+        ctx.textBaseline = 'middle';
+        const fy = colBottom + footerH / 2;
+        // Mixed-weight text runs; returns their total width ('measure' draws nothing)
+        const runs = (parts, x, align) => {
+            const widths = parts.map(([text, font]) => { ctx.font = font; return ctx.measureText(text).width; });
+            const total = widths.reduce((a, b) => a + b, 0);
+            if (align === 'measure') return total;
+            let cx = align === 'right' ? x - total : x;
+            ctx.textAlign = 'left';
+            parts.forEach(([text, font], i) => { ctx.font = font; ctx.fillText(text, cx, fy); cx += widths[i]; });
+            return total;
+        };
+        const leftW = runs([
+            [`Asleep ${model.asleepSince} \u00b7 back `, '24px sans-serif'],
+            [model.backAt, 'bold 28px sans-serif']
+        ], pad, 'left');
+        if (model.battery) {
+            const note = [[model.battery, 'bold 28px sans-serif'],
+                [model.batteryNote ? ` \u00b7 ${model.batteryNote}` : '', '24px sans-serif']];
+            // Never collide with the wake time: drop the note before that
+            if (runs(note, 0, 'measure') > W - pad * 3 - leftW) note.pop();
+            runs(note, W - pad, 'right');
+        }
+        ctx.restore();
+    }
+}
+
 const COMPONENT_REGISTRY = {
     'clock': ClockComponent,
     'date': DateComponent,
@@ -1342,7 +1475,8 @@ const COMPONENT_REGISTRY = {
     'swiss-poster': SwissPosterComponent,
     'status-bar': StatusBarComponent,
     'quote': QuoteComponent,
-    'trmnl': TrmnlComponent
+    'trmnl': TrmnlComponent,
+    'night': NightComponent
 };
 
 // Data need → the config key components receive it under
