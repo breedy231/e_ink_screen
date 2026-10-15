@@ -4,11 +4,20 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const config = require('./config');
+const { localDateIso } = require('./local-date');
 
 /**
  * Weather Service Module using Open-Meteo API
  * Fetches weather data with caching and error handling
  */
+
+/** Open-Meteo local ISO time ("2026-10-16T07:08") -> "7:08 AM". */
+function formatClockTime(localIso) {
+    const match = /T(\d{2}):(\d{2})/.exec(localIso);
+    if (!match) return null;
+    const hour = Number(match[1]);
+    return `${hour % 12 || 12}:${match[2]} ${hour < 12 ? 'AM' : 'PM'}`;
+}
 
 class WeatherService {
     constructor(options = {}) {
@@ -137,13 +146,15 @@ class WeatherService {
             },
             daily: {
                 time: [
-                    new Date().toISOString().split('T')[0],
-                    new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-                    new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString().split('T')[0]
+                    localDateIso(new Date(), this.timezone),
+                    localDateIso(new Date(Date.now() + 24 * 60 * 60 * 1000), this.timezone),
+                    localDateIso(new Date(Date.now() + 48 * 60 * 60 * 1000), this.timezone)
                 ],
                 weather_code: [2, 61, 1],
                 temperature_2m_max: [77.2, 67.6, 79.3],
-                temperature_2m_min: [65.1, 61.2, 67.5]
+                temperature_2m_min: [65.1, 61.2, 67.5],
+                sunrise: ['T07:06', 'T07:07', 'T07:08'].map((t, i) =>
+                    localDateIso(new Date(Date.now() + i * 24 * 60 * 60 * 1000), this.timezone) + t)
             },
             _source: 'mock',
             _timestamp: Date.now()
@@ -161,7 +172,7 @@ class WeatherService {
                 `latitude=${this.latitude}&` +
                 `longitude=${this.longitude}&` +
                 `current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m&` +
-                `daily=weather_code,temperature_2m_max,temperature_2m_min&` +
+                `daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise&` +
                 `timezone=${encodeURIComponent(this.timezone)}&` +
                 `temperature_unit=fahrenheit&` +
                 `wind_speed_unit=mph&` +
@@ -283,14 +294,26 @@ class WeatherService {
             lastUpdate: new Date(weatherData._timestamp || Date.now()).toLocaleTimeString()
         };
 
-        // Format daily forecast (skip today and past dates, show future only)
+        // Format daily forecast (skip today and past dates, show future only).
+        // `days` keeps every day including today, keyed by local date, for
+        // screens that need a specific day (the night screen's "tomorrow").
+        formatted.days = [];
         if (weatherData.daily && weatherData.daily.time) {
-            const today = new Date().toISOString().split('T')[0];
+            const today = localDateIso(new Date(), this.timezone);
             for (let i = 0; i < weatherData.daily.time.length; i++) {
-                if (weatherData.daily.time[i] <= today) continue;
-                if (formatted.forecast.length >= 3) break;
-
                 const forecastWeatherInfo = this.getWeatherInfo(weatherData.daily.weather_code[i]);
+                const sunrise = weatherData.daily.sunrise && weatherData.daily.sunrise[i];
+
+                formatted.days.push({
+                    isoDate: weatherData.daily.time[i],
+                    condition: forecastWeatherInfo.description,
+                    highTemp: `${Math.round(weatherData.daily.temperature_2m_max[i])}°`,
+                    lowTemp: `${Math.round(weatherData.daily.temperature_2m_min[i])}°`,
+                    sunrise: sunrise ? formatClockTime(sunrise) : null
+                });
+
+                if (weatherData.daily.time[i] <= today) continue;
+                if (formatted.forecast.length >= 3) continue;
 
                 formatted.forecast.push({
                     date: new Date(weatherData.daily.time[i] + 'T12:00:00').toLocaleDateString('en-US', {

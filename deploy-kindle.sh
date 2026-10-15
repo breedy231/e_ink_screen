@@ -56,12 +56,19 @@ kindle/start.sh
 kindle/stop.sh
 kindle/get-device-stats.sh
 "
+# Non-script files shipped alongside (no sh -n check)
+ASSETS="
+kindle/night-fallback.png
+"
 CONFIG_FILE="kindle/config/dashboard.conf"
 
 # Verify sources exist and pass a POSIX syntax check before shipping
 for f in $FILES; do
     [ -f "$SCRIPT_DIR/$f" ] || { echo "ERROR: missing $f"; exit 1; }
     sh -n "$SCRIPT_DIR/$f" || { echo "ERROR: $f fails sh -n"; exit 1; }
+done
+for f in $ASSETS; do
+    [ -f "$SCRIPT_DIR/$f" ] || { echo "ERROR: missing $f"; exit 1; }
 done
 [ -f "$SCRIPT_DIR/$CONFIG_FILE" ] || { echo "ERROR: missing $CONFIG_FILE"; exit 1; }
 
@@ -112,7 +119,7 @@ export SSHPASS="$KINDLE_PASSWORD"
 echo "Deploying to $KINDLE_USER@$KINDLE_HOST:$TARGET_DIR"
 run_ssh "mkdir -p $TARGET_DIR/config $TARGET_DIR/logs"
 
-for f in $FILES; do
+for f in $FILES $ASSETS; do
     echo "  -> $(basename "$f")"
     run_scp "$SCRIPT_DIR/$f" "$TARGET_DIR/$(basename "$f")"
 done
