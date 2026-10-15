@@ -83,6 +83,12 @@ write_pid() {
 
 cleanup() {
     log_msg "Dashboard loop stopping (PID $$)"
+    # Never leave the radio off behind us: with WIFI_BETWEEN_FETCHES=off it's
+    # off most of the day, and a Kindle with no WiFi can't be reached to fix
+    # it. (stop.sh also re-enables it — a SIGKILL never reaches this trap.)
+    if [ -x "/usr/bin/lipc-set-prop" ]; then
+        /usr/bin/lipc-set-prop com.lab126.cmd wirelessEnable 1 2>/dev/null || true
+    fi
     rm -f "$PID_FILE"
     exit 0
 }
@@ -110,24 +116,38 @@ disable_pillow() {
     fi
 }
 
-# Enable WiFi and wait for connection
+# Enable WiFi and wait for connection. A cold reconnect (radio was off)
+# gets WIFI_WAIT_COLD instead of WIFI_WAIT_MAX: one 07:00 reconnect has
+# taken over 30s, and with the radio off between fetches every fetch is a
+# cold reconnect.
 enable_wifi() {
+    local max=$WIFI_WAIT_MAX
+    if [ "${RADIO_OFF:-false}" = "true" ]; then
+        max=$WIFI_WAIT_COLD
+    fi
+
     if [ -x "/usr/bin/lipc-set-prop" ]; then
         /usr/bin/lipc-set-prop com.lab126.cmd wirelessEnable 1 2>/dev/null || true
     fi
 
     local waited=0
-    while [ $waited -lt $WIFI_WAIT_MAX ]; do
+    while [ $waited -lt $max ]; do
         if ifconfig wlan0 2>/dev/null | grep -q "inet addr"; then
             log_msg "WiFi connected (${waited}s)"
             apply_wifi_power_save
+            # Fresh association: give routing/ARP a moment before the
+            # fetch script's connectivity check
+            if [ "${RADIO_OFF:-false}" = "true" ]; then
+                sleep 2
+            fi
+            RADIO_OFF=false
             return 0
         fi
         sleep 2
         waited=$((waited + 2))
     done
 
-    log_msg "WARNING: WiFi not connected after ${WIFI_WAIT_MAX}s"
+    log_msg "WARNING: WiFi not connected after ${max}s"
     return 1
 }
 
@@ -143,15 +163,19 @@ apply_wifi_power_save() {
     fi
 }
 
-# Turn the radio off. Overnight there's nothing to fetch and no reason to
-# poll the poke flag, and the radio idling on the network is the biggest
-# steady drain (measured ~1%/hr overnight, same as daytime). do_update turns
-# it back on via enable_wifi.
+# Turn the radio off ($1 = log reason). The radio idling on the network is
+# the biggest steady drain (~0.6%/hr on top of a ~0.4%/hr floor), so it's
+# off overnight and, with WIFI_BETWEEN_FETCHES=off, between daytime fetches.
+# do_update turns it back on via enable_wifi.
 disable_wifi() {
+    if [ "${RADIO_OFF:-false}" = "true" ]; then
+        return 0
+    fi
     if [ -x "/usr/bin/lipc-set-prop" ]; then
         /usr/bin/lipc-set-prop com.lab126.cmd wirelessEnable 0 2>/dev/null \
-            && log_msg "WiFi off until active hours" || true
+            && log_msg "WiFi off ${1:-until active hours}" || true
     fi
+    RADIO_OFF=true
 }
 
 # Night screen: drawn once as active hours end, then left up all night with
@@ -199,8 +223,13 @@ do_update() {
 
     if ! enable_wifi; then
         log_msg "WiFi failed, skipping update"
+        # Leave the radio on until a connect succeeds, so one slow
+        # reconnect can't turn into back-to-back missed quarters (three in
+        # a row trips the Pi's 45-min staleness alert).
+        LAST_CONNECT_OK=false
         return 1
     fi
+    LAST_CONNECT_OK=true
 
     # Invoke via sh: /mnt/us is vfat, so exec bits don't survive there
     if [ -f "$FETCH_SCRIPT" ]; then
@@ -316,6 +345,12 @@ read_poke() {
     esac
 }
 
+# True when the Pi has a WiFi hold active (/hold): keep the radio on so
+# the Kindle can be reached over SSH. Unreachable Pi = no hold.
+wifi_hold_requested() {
+    [ "$(wget -q -O - "http://${SERVER_HOST}:${SERVER_PORT}/api/hold" 2>/dev/null)" = "1" ]
+}
+
 # Sleep for $1 seconds in POKE_INTERVAL chunks, checking the poke flag
 # between chunks. Returns 0 (cut sleep short) when a new poke arrived,
 # 1 when the full duration elapsed. POKE_INTERVAL=0 disables checking.
@@ -370,12 +405,18 @@ main() {
     # How often to check the server's poke flag mid-sleep (0 = never)
     POKE_INTERVAL="${POKE_INTERVAL:-20}"
 
+    # Radio between daytime fetches: on (stay associated, poll the poke
+    # flag) or off (reconnect each fetch; /next waits for the next quarter)
+    WIFI_BETWEEN_FETCHES="${WIFI_BETWEEN_FETCHES:-on}"
+    WIFI_WAIT_COLD="${WIFI_WAIT_COLD:-90}"
+
     log_msg "========================================="
     log_msg "Dashboard loop starting (PID $$)"
     log_msg "  Interval: ${UPDATE_INTERVAL}s"
     log_msg "  Active hours: ${ACTIVE_HOURS_START}:00-${ACTIVE_HOURS_END}:00 Central"
     log_msg "  UTC offset: ${UTC_OFFSET}"
     log_msg "  Poke check: every ${POKE_INTERVAL}s"
+    log_msg "  WiFi between fetches: ${WIFI_BETWEEN_FETCHES}"
     log_msg "========================================="
 
     write_pid
@@ -437,9 +478,16 @@ main() {
 
         # Sleep in poke-checkable chunks; a manual /next on the server cuts
         # the wait short and refreshes within ~POKE_INTERVAL seconds.
-        # Outside active hours: radio off, plain sleep, no poke polling.
+        # With WIFI_BETWEEN_FETCHES=off (and the last connect worked), or
+        # outside active hours: radio off, plain sleep, no poke polling.
         if is_active_hours; then
-            poke_sleep "$sleep_time"
+            if [ "$WIFI_BETWEEN_FETCHES" = "off" ] && [ "${LAST_CONNECT_OK:-true}" = "true" ] \
+                && ! wifi_hold_requested; then
+                disable_wifi "until next fetch"
+                sleep "$sleep_time"
+            else
+                poke_sleep "$sleep_time"
+            fi
         else
             disable_wifi
             sleep "$sleep_time"
