@@ -104,6 +104,56 @@ async function runTests() {
     assert(expiredResult.source === 'expired-cache', `Falls back to expired-cache (got: ${expiredResult && expiredResult.source})`);
     console.log();
 
+    // Test 3b: slow BYOS render. The request gives up and serves the old
+    // screen, but the fetch keeps going and lands in the cache — a slow
+    // mashup render is not an outage.
+    console.log('Test 3b: Slow BYOS Render Completes In Background');
+    const http = require('http');
+    const { createCanvas: mkCanvas } = require('canvas');
+    const slowPng = mkCanvas(10, 10).toBuffer('image/png');
+    let displayHits = 0;
+    const slowServer = http.createServer((req, res) => {
+        if (req.url === '/api/display') {
+            displayHits++;
+            setTimeout(() => {
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ image_url: '/screen.png', refresh_rate: 900 }));
+            }, 600);
+        } else {
+            res.writeHead(200, { 'Content-Type': 'image/png' });
+            res.end(slowPng);
+        }
+    });
+    await new Promise(resolve => slowServer.listen(0, '127.0.0.1', resolve));
+    const slowDir = freshCacheDir('slow');
+    fs.mkdirSync(slowDir, { recursive: true });
+    const oldShot = path.join(slowDir, 'screen.png');
+    fs.writeFileSync(oldShot, Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+    const oldFetchedAt = Date.now() - 999999;
+    fs.writeFileSync(path.join(slowDir, 'screen.meta.json'), JSON.stringify({ fetchedAt: oldFetchedAt }));
+    fs.utimesSync(oldShot, new Date(oldFetchedAt), new Date(oldFetchedAt));
+
+    const slowService = new TrmnlService({
+        baseUrl: `http://127.0.0.1:${slowServer.address().port}`,
+        deviceMac: 'AA:BB:CC:DD:EE:FF',
+        apiKey: 'test-key',
+        cacheDir: slowDir,
+        cacheTimeout: 60000,
+        requestTimeout: 100,
+        renderTimeout: 5000
+    });
+    const first = await slowService.getFormattedTrmnl();
+    assert(first.source === 'expired-cache', `Slow render serves the previous screen (got: ${first.source})`);
+    const second = await slowService.getFormattedTrmnl();
+    assert(second.source === 'expired-cache' && displayHits === 1, `Second call during the render doesn't re-hit BYOS (hits: ${displayHits})`);
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    const third = await slowService.getFormattedTrmnl();
+    assert(third.source === 'cache', `Background fetch landed in the cache (got: ${third.source})`);
+    assert(third.fetchedAt > oldFetchedAt, 'fetchedAt advanced, so the staleness alert stays quiet');
+    assert(displayHits === 1, `Exactly one BYOS request (got ${displayHits})`);
+    slowServer.close();
+    console.log();
+
     // Test 4: Non-PNG bytes (e.g. BMP) are rejected as a fetch failure, not a crash
     console.log('Test 4: Garbage/Non-PNG Bytes Rejected');
     const rejectDir = freshCacheDir('reject');
@@ -177,7 +227,7 @@ async function runTests() {
     console.log();
 
     // Cleanup test cache dirs
-    for (const name of ['mock', 'unconfigured', 'expired', 'reject']) {
+    for (const name of ['mock', 'unconfigured', 'expired', 'reject', 'slow']) {
         const dir = path.join(__dirname, '..', 'cache', `trmnl_test_${name}`);
         if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true });
     }

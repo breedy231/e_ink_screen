@@ -27,7 +27,14 @@ class TrmnlService {
         this.apiKey = options.apiKey || config.TRMNL_API_KEY;
         this.cacheDir = options.cacheDir || path.join(__dirname, '..', 'cache', 'trmnl');
         this.cacheTimeout = options.cacheTimeout || config.TRMNL_CACHE_TTL_MS;
+        // How long a dashboard request waits on BYOS before serving the
+        // previous screen. The fetch itself keeps going for up to
+        // renderTimeout: BYOS renders mashups synchronously (60-90s of
+        // headless Chromium), so a 15s cap alone dropped ~1 in 4 fetches and
+        // tripped the staleness alert while the Mac was perfectly healthy.
         this.requestTimeout = options.requestTimeout || 15000;
+        this.renderTimeout = options.renderTimeout || 120000;
+        this._inflight = null;
         this.mockData = options.mockData || false;
 
         this._lastFailureAt = 0;
@@ -209,7 +216,12 @@ class TrmnlService {
             throw new Error('TRMNL is not configured');
         }
 
-        const display = await this.fetchDisplayJson(120000);
+        // Let a background fetch finish first, or BYOS advances twice.
+        if (this._inflight) {
+            await this._inflight.catch(() => {});
+        }
+
+        const display = await this.fetchDisplayJson(this.renderTimeout);
         if (!display.image_url) {
             throw new Error('TRMNL display response missing image_url');
         }
@@ -248,8 +260,45 @@ class TrmnlService {
             return { imagePath: this.getScreenPath(), ...this.loadMeta(), source: 'expired-cache' };
         }
 
+        // A previous request's fetch is still rendering — don't wait on it
+        // again (resolveLayout and the component each call this per poll).
+        if (this._inflight && this.hasCache()) {
+            return { imagePath: this.getScreenPath(), ...this.loadMeta(), source: 'expired-cache' };
+        }
+
+        const fetch = this._inflight || this.startFetch();
+        let timer;
+        const waited = new Promise((resolve) => {
+            timer = setTimeout(() => resolve('pending'), this.requestTimeout);
+        });
+
         try {
-            const display = await this.fetchDisplayJson();
+            const result = await Promise.race([fetch, waited]);
+            if (result !== 'pending') {
+                return result;
+            }
+            console.warn(`TrmnlService: BYOS still rendering after ${this.requestTimeout}ms; serving previous screen, fetch continues in background`);
+        } catch (error) {
+            // startFetch() already logged and memoed the failure.
+        } finally {
+            clearTimeout(timer);
+        }
+
+        if (this.hasCache()) {
+            return { imagePath: this.getScreenPath(), ...this.loadMeta(), source: 'expired-cache' };
+        }
+
+        return null;
+    }
+
+    /**
+     * One BYOS fetch at a time, allowed the full renderTimeout. Updates the
+     * disk cache when it lands, even if the request that started it has
+     * already given up and served the old screen.
+     */
+    startFetch() {
+        this._inflight = (async () => {
+            const display = await this.fetchDisplayJson(this.renderTimeout);
             if (!display.image_url) {
                 throw new Error('TRMNL display response missing image_url');
             }
@@ -258,18 +307,21 @@ class TrmnlService {
 
             const meta = { refreshRate: display.refresh_rate || null, fetchedAt: Date.now() };
             this.saveMeta(meta);
+            this._lastFailureAt = 0;
 
             return { imagePath: this.getScreenPath(), ...meta, source: 'api' };
-        } catch (error) {
-            console.warn(`TrmnlService: fetch failed: ${error.message}`);
-            this._lastFailureAt = Date.now();
+        })();
 
-            if (this.hasCache()) {
-                return { imagePath: this.getScreenPath(), ...this.loadMeta(), source: 'expired-cache' };
-            }
+        this._inflight
+            .catch((error) => {
+                console.warn(`TrmnlService: fetch failed: ${error.message}`);
+                this._lastFailureAt = Date.now();
+            })
+            .finally(() => {
+                this._inflight = null;
+            });
 
-            return null;
-        }
+        return this._inflight;
     }
 }
 
