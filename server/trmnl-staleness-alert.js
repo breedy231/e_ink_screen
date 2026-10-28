@@ -9,8 +9,14 @@
  *
  * Evaluated on each Kindle poll (resolveLayout), so there is no timer and
  * no active-hours math here — polls only happen during active hours.
- * Anchored to the cached screen's own fetchedAt, which survives service
- * restarts; a restart mid-outage therefore doesn't reset the clock.
+ *
+ * The threshold is measured from the first failing poll of the episode,
+ * NOT from the cached screen's fetchedAt. Nothing fetches overnight, so the
+ * first morning poll always finds a ~9h-old cache; when that render is slow
+ * (trmnl-service.js lets it finish in the background and serves the expired
+ * cache meanwhile) the old fetchedAt anchor alerted "stale for 555 min" every
+ * morning. Cost: a service restart mid-outage restarts the clock, delaying
+ * the alert by one threshold. staleMinutes still reports the screen's age.
  *
  * Split out like battery-alert.js so it can be unit tested without the
  * render deps.
@@ -33,7 +39,7 @@ class TrmnlStalenessAlertState {
      * @param {{source: string, fetchedAt?: number}|null} result what
      *   getFormattedTrmnl() resolved to for this poll
      * @param {number} now epoch ms
-     * @returns {{stale: boolean, notify: boolean, staleMinutes: number|null, hadScreen: boolean}}
+     * @returns {{stale: boolean, notify: boolean, staleMinutes: number|null, failingMinutes: number|null, hadScreen: boolean}}
      */
     evaluate(result, now) {
         const source = result && result.source;
@@ -42,7 +48,7 @@ class TrmnlStalenessAlertState {
         if (healthy) {
             this.alerted = false; // re-arm for the next episode
             this.firstFailureAt = null;
-            return { stale: false, notify: false, staleMinutes: null, hadScreen: true };
+            return { stale: false, notify: false, staleMinutes: null, failingMinutes: null, hadScreen: true };
         }
 
         // Failing: expired-cache, or null (no cached screen at all).
@@ -51,23 +57,24 @@ class TrmnlStalenessAlertState {
         }
 
         const lastGoodAt = (result && result.fetchedAt) || null;
-        // No cached screen means no fetchedAt to age — measure the episode
-        // from its first observed failure instead.
-        const anchor = lastGoodAt ?? this.firstFailureAt;
-        const staleMs = now - anchor;
-        const staleMinutes = Math.round(staleMs / 60000);
+        const failingMs = now - this.firstFailureAt;
+        const failingMinutes = Math.round(failingMs / 60000);
+        // Age of what the Kindle is showing; with no cached screen there is
+        // nothing to age, so fall back to how long fetches have failed.
+        const staleMinutes = lastGoodAt !== null ? Math.round((now - lastGoodAt) / 60000) : failingMinutes;
         const hadScreen = lastGoodAt !== null;
+        const base = { staleMinutes, failingMinutes, hadScreen };
 
-        if (staleMs <= this.thresholdMs) {
-            return { stale: false, notify: false, staleMinutes, hadScreen };
+        if (failingMs <= this.thresholdMs) {
+            return { stale: false, notify: false, ...base };
         }
 
         if (this.alerted) {
-            return { stale: true, notify: false, staleMinutes, hadScreen };
+            return { stale: true, notify: false, ...base };
         }
 
         this.alerted = true;
-        return { stale: true, notify: true, staleMinutes, hadScreen };
+        return { stale: true, notify: true, ...base };
     }
 }
 
