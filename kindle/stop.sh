@@ -319,6 +319,12 @@ main() {
     # Stop the dashboard loop if running (PID file + orphan sweep)
     stop_all_loops
 
+    # The loop may have been killed with the radio off (it turns WiFi off
+    # between fetches and overnight); SIGKILL skips its own cleanup.
+    if [ -x "/usr/bin/lipc-set-prop" ]; then
+        /usr/bin/lipc-set-prop com.lab126.cmd wirelessEnable 1 2>/dev/null || true
+    fi
+
     # Re-enable pillow UI overlay
     if [ -x "/usr/bin/lipc-set-prop" ]; then
         /usr/bin/lipc-set-prop com.lab126.pillow disableEnablePillow enable 2>/dev/null || true
