@@ -52,11 +52,19 @@ class TrmnlStalenessAlertState {
         }
 
         // Failing: expired-cache, or null (no cached screen at all).
-        if (this.firstFailureAt === null) {
+        const lastGoodAt = (result && result.fetchedAt) || null;
+
+        // A fetch that landed after the episode began means BYOS is slow, not
+        // down: renders over trmnl-service.js's 15s wait finish in the
+        // background, so a run of slow renders serves expired-cache on every
+        // poll while the screen still updates one quarter behind. Restart the
+        // clock instead of letting it run to the threshold (2026-11-03 false
+        // "stale for 16 min" after three slow renders in a row).
+        if (this.firstFailureAt === null
+            || (lastGoodAt !== null && lastGoodAt > this.firstFailureAt)) {
             this.firstFailureAt = now;
         }
 
-        const lastGoodAt = (result && result.fetchedAt) || null;
         const failingMs = now - this.firstFailureAt;
         const failingMinutes = Math.round(failingMs / 60000);
         // Age of what the Kindle is showing; with no cached screen there is
