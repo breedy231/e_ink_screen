@@ -56,6 +56,33 @@ function runTests() {
         assert(second.stale && !second.notify, 'latch holds — no repeat notification');
     }
 
+    console.log('\nSlow renders that land in the background are not an outage:');
+    {
+        // 2026-11-03: every poll hit the 15s wait and served expired-cache,
+        // but each background render finished seconds later.
+        const s = new TrmnlStalenessAlertState({ thresholdMs: 30 * MIN });
+        s.evaluate({ source: 'expired-cache', fetchedAt: T0 - 15 * MIN }, T0);
+        s.evaluate({ source: 'expired-cache', fetchedAt: T0 + 1 * MIN }, T0 + 15 * MIN);
+        const d = s.evaluate({ source: 'expired-cache', fetchedAt: T0 + 16 * MIN }, T0 + 31 * MIN);
+        assert(!d.stale && !d.notify, 'three slow-but-landing renders stay quiet');
+        assert(d.failingMinutes === 0, 'clock restarts when a fetch lands');
+        assert(d.staleMinutes === 15, 'staleMinutes still reports screen age');
+    }
+
+    console.log('\nOutage after a slow render still alerts:');
+    {
+        const s = new TrmnlStalenessAlertState({ thresholdMs: 30 * MIN });
+        s.evaluate({ source: 'expired-cache', fetchedAt: T0 - 15 * MIN }, T0);
+        // background render landed at T0+1, then BYOS went down
+        s.evaluate({ source: 'expired-cache', fetchedAt: T0 + 1 * MIN }, T0 + 15 * MIN);
+        s.evaluate({ source: 'expired-cache', fetchedAt: T0 + 1 * MIN }, T0 + 30 * MIN);
+        const quiet = s.evaluate({ source: 'expired-cache', fetchedAt: T0 + 1 * MIN }, T0 + 45 * MIN);
+        assert(!quiet.notify, 'quiet at exactly the threshold');
+        const d = s.evaluate({ source: 'expired-cache', fetchedAt: T0 + 1 * MIN }, T0 + 60 * MIN);
+        assert(d.stale && d.notify, 'notifies once fetches stop landing for 30+ min');
+        assert(d.staleMinutes === 59, 'reports real screen age');
+    }
+
     console.log('\nRe-arm on recovery:');
     {
         const s = new TrmnlStalenessAlertState({ thresholdMs: 30 * MIN });
